@@ -17,7 +17,6 @@ interface ImportError {
 interface ImportSummary {
   totalRows: number;
   productsCreated: number;
-  variantsCreated: number;
   errors: ImportError[];
 }
 
@@ -89,26 +88,41 @@ export default function AdminImportsPage() {
           <h2 className="font-semibold text-gray-900">1. Start from the template</h2>
         </div>
         <p className="text-sm text-gray-600">
-          Download the template, fill the rows, then upload below. One row per <strong>variant</strong> —
-          rows that share <code className="font-mono text-xs">name</code> + <code className="font-mono text-xs">nameAr</code> are
-          bundled into one product.
+          Download the template, fill the rows, then upload below. <strong>One row per product</strong> — price,
+          quantity, SKU and barcode live directly on the product. No variant rows.
         </p>
         <Button variant="secondary" size="sm" onClick={downloadTemplate}>
           <Download className="h-4 w-4" /> Download template
         </Button>
         <details className="text-xs text-gray-500">
           <summary className="cursor-pointer font-semibold">Column reference</summary>
-          <ul className="mt-2 ml-4 list-disc space-y-0.5">
-            <li><code>name</code>, <code>nameAr</code> — required, group key</li>
-            <li><code>description</code>, <code>descriptionAr</code> — optional, picked from first row</li>
-            <li>Product images: upload <code>&#123;sku&#125;.jpg</code> to Bunny Storage. The CDN URL is generated from the SKU automatically.</li>
-            <li><code>categorySlug</code> — required, must already exist</li>
-            <li><code>subcategorySlug</code> — optional, must exist under the category if given</li>
-            <li><code>featured</code> — true/false on the first row</li>
-            <li><code>variantType</code> — PIECE / CARTON / DOZEN / BUNDLE</li>
-            <li><code>sku</code> — required, unique</li>
-            <li><code>barcode</code>, <code>price</code>, <code>stock</code></li>
-          </ul>
+          <div className="mt-2 space-y-2">
+            <p className="font-semibold text-gray-700">Required</p>
+            <ul className="ml-4 list-disc space-y-0.5">
+              <li><code>name</code> — English product name</li>
+              <li><code>nameAr</code> — Arabic product name</li>
+              <li><code>brandSlug</code> — must already exist and be active (create the brand first)</li>
+              <li><code>categorySlug</code> — must already exist</li>
+              <li><code>sku</code> — unique across all products and within the file</li>
+              <li><code>price</code> — &gt; 0</li>
+              <li><code>quantity</code> — &gt;= 0 (also accepted as <code>stock</code>)</li>
+            </ul>
+            <p className="font-semibold text-gray-700">Optional</p>
+            <ul className="ml-4 list-disc space-y-0.5">
+              <li><code>description</code>, <code>descriptionAr</code></li>
+              <li><code>subcategorySlug</code> — must belong to the chosen category if provided</li>
+              <li><code>barcode</code></li>
+              <li><code>featured</code> — true/false</li>
+            </ul>
+            <p className="text-amber-700">
+              Variant columns (<code>variantType</code>, <code>variantSku</code>, piece / carton / dozen / bundle)
+              are no longer supported and will be ignored.
+            </p>
+            <p>
+              Product image is loaded from Bunny CDN using the SKU as the filename
+              (<code>&#123;sku&#125;.png</code>). Missing files fall back to the default product image.
+            </p>
+          </div>
         </details>
       </section>
 
@@ -167,10 +181,9 @@ export default function AdminImportsPage() {
             <h2 className="font-semibold text-gray-900">3. Result</h2>
           </div>
 
-          <div className="grid grid-cols-3 gap-3 text-center">
+          <div className="grid grid-cols-2 gap-3 text-center">
             <SummaryTile label="Rows read"        value={result.totalRows} />
             <SummaryTile label="Products created" value={result.productsCreated} color="green" />
-            <SummaryTile label="Variants created" value={result.variantsCreated} color="green" />
           </div>
 
           {result.errors.length > 0 && (

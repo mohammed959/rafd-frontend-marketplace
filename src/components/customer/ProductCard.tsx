@@ -4,22 +4,23 @@ import { ProductImage } from '@/components/common/ProductImage';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { motion } from 'framer-motion';
-import { useState, useMemo } from 'react';
-import { Product, ProductVariant } from '@/types';
+import { Product } from '@/types';
 import { useCartStore } from '@/stores/cartStore';
 import { useLocale, pickLocalized } from '@/i18n/useLocale';
 import { formatPrice, cn } from '@/lib/utils';
-import { VariantSelector } from './VariantSelector';
 import { FavoriteButton } from './FavoriteButton';
 import { QuantityStepper } from '@/components/ui/QuantityStepper';
 
-function variantAvailable(v: ProductVariant): boolean {
-  return v.available ?? (v.isActive && v.stock - v.reserved > 0);
-}
-
 interface ProductCardProps {
   product: Product;
-  initialVariantId?: string;
+}
+
+function productAvailable(p: Product): boolean {
+  if (p.available != null) return p.available;
+  if (!p.isActive) return false;
+  const stock = p.stock ?? 0;
+  const reserved = p.reserved ?? 0;
+  return stock - reserved > 0;
 }
 
 /** Click handler that swallows the event before it bubbles to the card. */
@@ -27,46 +28,32 @@ function stop(e: React.MouseEvent | React.KeyboardEvent) {
   e.stopPropagation();
 }
 
-export function ProductCard({ product, initialVariantId }: ProductCardProps) {
+export function ProductCard({ product }: ProductCardProps) {
   const router = useRouter();
   const t = useTranslations('products');
   const locale = useLocale();
   const items = useCartStore((s) => s.items);
-  const addItem = useCartStore((s) => s.addItem);
+  const addProduct = useCartStore((s) => s.addProduct);
   const updateQuantity = useCartStore((s) => s.updateQuantity);
   const openDetail = () => router.push(`/product-details/${product.id}`);
 
   const displayName = pickLocalized(product, locale);
-
-  const defaultVariant = useMemo(() => {
-    if (initialVariantId) {
-      const match = product.variants.find((v) => v.id === initialVariantId);
-      if (match) return match;
-    }
-    return product.variants.find(variantAvailable) ?? product.variants[0];
-  }, [product.variants, initialVariantId]);
-
-  const [selected, setSelected] = useState<ProductVariant | null>(defaultVariant ?? null);
-  if (!selected) return null;
-
-  const cartItem = items.find((i) => i.variantId === selected.id);
-  const available = variantAvailable(selected);
-  const maxQty = Math.max(0, selected.stock - selected.reserved);
+  const brandName = product.brand ? pickLocalized(product.brand, locale) : null;
+  const available = productAvailable(product);
+  const stock = product.stock ?? 0;
+  const reserved = product.reserved ?? 0;
+  const maxQty = Math.max(0, stock - reserved);
+  // Cart is product-keyed end-to-end.
+  const cartItem = items.find((i) => i.productId === product.id);
 
   const handleAdd = (e?: React.MouseEvent) => {
     e?.stopPropagation();
-    addItem({
-      variantId: selected.id,
-      productId: product.id,
-      productName: product.name,
-      productImage: product.imageUrl,
-      variantType: selected.type,
-      price: selected.price,
-    });
+    if (!available) return;
+    addProduct(product);
   };
 
   // The whole card is clickable. Inner interactive controls (add, stepper,
-  // favourite, variant pills) stop propagation so they don't navigate.
+  // favourite) stop propagation so they don't navigate.
   const handleCardKey = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
@@ -136,7 +123,7 @@ export function ProductCard({ product, initialVariantId }: ProductCardProps) {
               size="sm"
               value={cartItem.quantity}
               max={maxQty}
-              onChange={(q) => updateQuantity(selected.id, q)}
+              onChange={(q) => updateQuantity(product.id, q)}
             />
           </div>
         )}
@@ -144,18 +131,15 @@ export function ProductCard({ product, initialVariantId }: ProductCardProps) {
 
       {/* Info — flex-1 so every card body fills its grid cell uniformly */}
       <div className="flex flex-1 flex-col gap-1 px-2 py-2 sm:gap-1.5 sm:px-3 sm:py-2.5">
+        {brandName && (
+          <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider text-gray-400 truncate">
+            {brandName}
+          </p>
+        )}
+
         <p className="text-[12px] sm:text-sm font-semibold text-gray-900 line-clamp-2 leading-snug min-h-[2rem] sm:min-h-[2.5rem]">
           {displayName}
         </p>
-
-        {/* Variant pills — pick-a-size shouldn't navigate to detail */}
-        <div className="min-h-[1.5rem] sm:min-h-[1.75rem]" onClick={stop} onMouseDown={stop}>
-          <VariantSelector
-            variants={product.variants}
-            selectedId={selected.id}
-            onSelect={setSelected}
-          />
-        </div>
 
         {/* Price pinned to the bottom of the body */}
         <div className="mt-auto flex items-baseline gap-1.5 pt-0.5">
@@ -163,7 +147,7 @@ export function ProductCard({ product, initialVariantId }: ProductCardProps) {
             'text-sm sm:text-base font-bold',
             available ? 'text-brand-600' : 'text-gray-400'
           )}>
-            {formatPrice(selected.price)}
+            {product.price != null ? formatPrice(product.price) : '—'}
           </span>
           {!available && (
             <span className="text-[10px] sm:text-xs text-gray-400">{t('unavailable')}</span>

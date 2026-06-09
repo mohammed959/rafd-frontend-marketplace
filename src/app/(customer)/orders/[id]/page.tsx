@@ -14,7 +14,7 @@ import { OrderBarcode } from '@/components/common/OrderBarcode';
 import { CarPickupDetails } from '@/components/common/CarPickupDetails';
 import api from '@/lib/api';
 import { Order, ReorderResult, PaymentStatus } from '@/types';
-import { formatPrice, variantLabelLocalized, orderStatusColor } from '@/lib/utils';
+import { formatPrice, orderStatusColor } from '@/lib/utils';
 import { useLocale, pickLocalized } from '@/i18n/useLocale';
 import { OrderStatusTimeline } from '@/components/customer/OrderStatusTimeline';
 import { useCartStore } from '@/stores/cartStore';
@@ -86,11 +86,9 @@ export default function OrderDetailPage() {
       }
       setItemsFromReorder(
         items.map((i) => ({
-          variantId: i.variantId,
           productId: i.productId,
           productName: i.productName,
           productImage: i.productImage,
-          variantType: i.variantType,
           price: i.price,
           quantity: i.quantity,
         }))
@@ -286,12 +284,23 @@ export default function OrderDetailPage() {
       <div className="rounded-2xl bg-white border border-gray-100 p-4 space-y-3">
         <p className="font-semibold text-gray-900">{t('orders.items')} ({order.items.length})</p>
         {order.items.map((item) => {
-          const productName = pickLocalized(item.variant.product, locale);
+          // Phase 6: prefer the flat product field; fall back to the
+          // legacy variant.product so orders placed before the migration
+          // still render. `productName` snapshot on the line itself wins
+          // when the source product has been renamed or deleted.
+          const productEntity = item.product ?? item.variant?.product ?? null;
+          const productName = item.productName
+            ? (locale === 'ar' && item.productNameAr ? item.productNameAr : item.productName)
+            : productEntity
+              ? pickLocalized(productEntity, locale)
+              : '—';
+          const productImage = productEntity?.imageUrl ?? null;
+          const sku = item.productSku ?? productEntity?.sku ?? item.variant?.sku ?? null;
           return (
             <div key={item.id} className="flex items-center gap-3">
               <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-gray-100">
                 <ProductImage
-                  src={item.variant.product.imageUrl}
+                  src={productImage}
                   alt={productName}
                   fill
                   sizes="48px"
@@ -300,7 +309,9 @@ export default function OrderDetailPage() {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-gray-900 truncate">{productName}</p>
-                <p className="text-xs text-gray-500">{variantLabelLocalized(item.variant.type, locale)} × {item.quantity}</p>
+                <p className="text-xs text-gray-500">
+                  × {item.quantity}{sku ? ` · SKU ${sku}` : ''}
+                </p>
               </div>
               <p className="text-sm font-bold text-gray-900 shrink-0">{formatPrice(item.total)}</p>
             </div>

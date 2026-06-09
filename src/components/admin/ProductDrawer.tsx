@@ -1,38 +1,11 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { X, Plus, Trash2, Image as ImageIcon } from 'lucide-react';
+import { X, Image as ImageIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '@/lib/api';
-import { Category, Product, VariantType } from '@/types';
+import { Brand, Category, Product } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-
-interface VariantForm {
-  id?: string;
-  type: VariantType;
-  sku: string;
-  barcode: string;
-  price: string;
-  stock: string;
-  isActive: boolean;
-}
-
-const VARIANT_TYPES: VariantType[] = ['PIECE', 'CARTON', 'DOZEN', 'BUNDLE'];
-const VARIANT_LABELS: Record<VariantType, string> = {
-  PIECE: 'Piece',
-  CARTON: 'Carton',
-  DOZEN: 'Dozen',
-  BUNDLE: 'Bundle',
-};
-
-const emptyVariant = (): VariantForm => ({
-  type: 'PIECE',
-  sku: '',
-  barcode: '',
-  price: '',
-  stock: '0',
-  isActive: true,
-});
 
 interface Props {
   open: boolean;
@@ -41,88 +14,87 @@ interface Props {
   product?: Product | null;
 }
 
+/**
+ * Phase 3 flat product drawer. Variants are gone — SKU, barcode, price
+ * and quantity live directly on the product. Brand is required and is
+ * picked from `/api/brands` (only active brands surface). Sub-category
+ * and the two description fields are optional.
+ */
 export function ProductDrawer({ open, onClose, onSaved, product }: Props) {
   const isEdit = Boolean(product);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [brands, setBrands] = useState<Brand[]>([]);
   const [loading, setLoading] = useState(false);
 
   const [name, setName] = useState('');
   const [nameAr, setNameAr] = useState('');
+  const [description, setDescription] = useState('');
+  const [descriptionAr, setDescriptionAr] = useState('');
+  const [brandId, setBrandId] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [subcategoryId, setSubcategoryId] = useState('');
-  const [description, setDescription] = useState('');
+  const [sku, setSku] = useState('');
+  const [barcode, setBarcode] = useState('');
+  const [price, setPrice] = useState('');
+  const [quantity, setQuantity] = useState('0');
   const [isFeatured, setIsFeatured] = useState(false);
   const [isActive, setIsActive] = useState(true);
   const [hideFromHome, setHideFromHome] = useState(false);
-  const [variants, setVariants] = useState<VariantForm[]>([emptyVariant()]);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Load reference data once the drawer first opens.
   useEffect(() => {
-    if (open && categories.length === 0) {
+    if (!open) return;
+    if (categories.length === 0) {
       api.get('/categories?all=true').then((r) => setCategories(r.data.data)).catch(() => {});
     }
-  }, [open, categories.length]);
+    if (brands.length === 0) {
+      api.get('/brands').then((r) => setBrands(r.data.data)).catch(() => {});
+    }
+  }, [open, categories.length, brands.length]);
 
+  // Hydrate form fields whenever the drawer opens for create or edit.
   useEffect(() => {
     if (!open) return;
     setErrors({});
     if (product) {
       setName(product.name);
       setNameAr(product.nameAr);
+      setDescription(product.description ?? '');
+      setDescriptionAr(product.descriptionAr ?? '');
+      setBrandId(product.brand?.id ?? '');
       setCategoryId(product.category.id);
       setSubcategoryId(product.subcategory?.id ?? '');
-      setDescription(product.description ?? '');
+      setSku(product.sku ?? '');
+      setBarcode(product.barcode ?? '');
+      setPrice(product.price != null ? String(product.price) : '');
+      setQuantity(String(product.stock ?? 0));
       setIsFeatured(product.isFeatured);
       setIsActive(product.isActive);
       setHideFromHome(Boolean(product.hideFromHome));
-      setVariants(
-        product.variants.length > 0
-          ? product.variants.map((v) => ({
-              id: v.id,
-              type: v.type,
-              sku: v.sku,
-              barcode: v.barcode ?? '',
-              price: String(v.price),
-              stock: String(v.stock),
-              isActive: v.isActive,
-            }))
-          : [emptyVariant()]
-      );
     } else {
-      setName(''); setNameAr(''); setCategoryId(''); setSubcategoryId('');
-      setDescription(''); setIsFeatured(false); setIsActive(true);
-      setHideFromHome(false);
-      setVariants([emptyVariant()]);
+      setName(''); setNameAr('');
+      setDescription(''); setDescriptionAr('');
+      setBrandId(''); setCategoryId(''); setSubcategoryId('');
+      setSku(''); setBarcode('');
+      setPrice(''); setQuantity('0');
+      setIsFeatured(false); setIsActive(true); setHideFromHome(false);
     }
   }, [open, product]);
 
   const selectedCategory = categories.find((c) => c.id === categoryId);
 
-  const updateVariant = <K extends keyof VariantForm>(index: number, field: K, value: VariantForm[K]) => {
-    setVariants((prev) => prev.map((v, i) => (i === index ? { ...v, [field]: value } : v)));
-  };
-
-  const addVariant = () => setVariants((prev) => [...prev, emptyVariant()]);
-
-  const removeVariant = (index: number) => {
-    const v = variants[index];
-    if (v.id) {
-      toast.error('Existing variants cannot be removed. Deactivate them instead.');
-      return;
-    }
-    if (variants.length === 1) return;
-    setVariants((prev) => prev.filter((_, i) => i !== index));
-  };
-
   const validate = (): boolean => {
     const e: Record<string, string> = {};
     if (!name.trim()) e.name = 'Product name is required';
     if (!nameAr.trim()) e.nameAr = 'Arabic name is required';
+    if (!brandId) e.brandId = 'Brand is required';
     if (!categoryId) e.categoryId = 'Category is required';
-    variants.forEach((v, i) => {
-      if (!v.sku.trim()) e[`sku_${i}`] = 'SKU is required';
-      if (!v.price || Number(v.price) <= 0) e[`price_${i}`] = 'Valid price is required';
-    });
+    if (!sku.trim()) e.sku = 'SKU is required';
+    if (!price || Number(price) <= 0) e.price = 'Price must be greater than 0';
+    if (quantity === '' || Number.isNaN(Number(quantity)) || Number(quantity) < 0) {
+      e.quantity = 'Quantity must be 0 or greater';
+    }
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -131,59 +103,31 @@ export function ProductDrawer({ open, onClose, onSaved, product }: Props) {
     if (!validate()) return;
     setLoading(true);
     try {
-      if (isEdit && product) {
-        await api.put(`/products/${product.id}`, {
-          name: name.trim(),
-          nameAr: nameAr.trim(),
-          categoryId,
-          subcategoryId: subcategoryId || undefined,
-          description: description.trim() || undefined,
-          isFeatured,
-          hideFromHome,
-        });
+      const payload = {
+        name: name.trim(),
+        nameAr: nameAr.trim(),
+        description: description.trim() || undefined,
+        descriptionAr: descriptionAr.trim() || undefined,
+        brandId,
+        categoryId,
+        subcategoryId: subcategoryId || undefined,
+        sku: sku.trim(),
+        barcode: barcode.trim() || undefined,
+        price: Number(price),
+        quantity: Math.floor(Number(quantity)) || 0,
+        isFeatured,
+        hideFromHome,
+      };
 
+      if (isEdit && product) {
+        await api.put(`/products/${product.id}`, payload);
         if (isActive !== product.isActive) {
           await api.patch(`/products/${product.id}/status`, { isActive });
         }
-
-        for (const v of variants) {
-          if (v.id) {
-            await api.put(`/products/${product.id}/variants/${v.id}`, {
-              price: Number(v.price),
-              stock: Number(v.stock) || 0,
-              barcode: v.barcode.trim() || undefined,
-              isActive: v.isActive,
-            });
-          } else {
-            await api.post(`/products/${product.id}/variants`, {
-              type: v.type,
-              sku: v.sku.trim(),
-              barcode: v.barcode.trim() || undefined,
-              price: Number(v.price),
-              stock: Number(v.stock) || 0,
-            });
-          }
-        }
-
         toast.success('Product updated');
       } else {
-        await api.post('/products', {
-          name: name.trim(),
-          nameAr: nameAr.trim(),
-          categoryId,
-          subcategoryId: subcategoryId || undefined,
-          description: description.trim() || undefined,
-          isFeatured,
-          hideFromHome,
-          variants: variants.map((v) => ({
-            type: v.type,
-            sku: v.sku.trim(),
-            barcode: v.barcode.trim() || undefined,
-            price: Number(v.price),
-            stock: Number(v.stock) || 0,
-          })),
-        });
-        toast.success('Product created successfully');
+        await api.post('/products', payload);
+        toast.success('Product created');
       }
       onSaved();
       onClose();
@@ -215,19 +159,22 @@ export function ProductDrawer({ open, onClose, onSaved, product }: Props) {
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 py-5 space-y-6">
+
+          {/* ─── Basic info ───────────────────────────────────────────── */}
           <section className="space-y-3">
             <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Basic Info</h3>
 
-            <Input label="Product Name (English)" placeholder="e.g. Full Fat Milk" value={name} onChange={(e) => setName(e.target.value)} error={errors.name} />
-            <Input label="Product Name (Arabic)" placeholder="مثال: حليب كامل الدسم" value={nameAr} onChange={(e) => setNameAr(e.target.value)} error={errors.nameAr} dir="rtl" />
-            <Input label="Description (optional)" placeholder="Short product description" value={description} onChange={(e) => setDescription(e.target.value)} />
+            <Input label="Product Name (English) *" placeholder="e.g. Full Fat Milk" value={name} onChange={(e) => setName(e.target.value)} error={errors.name} />
+            <Input label="Product Name (Arabic) *" placeholder="مثال: حليب كامل الدسم" value={nameAr} onChange={(e) => setNameAr(e.target.value)} error={errors.nameAr} dir="rtl" />
+            <Input label="Description (English, optional)" placeholder="Short product description" value={description} onChange={(e) => setDescription(e.target.value)} />
+            <Input label="Description (Arabic, optional)" placeholder="وصف موجز للمنتج" value={descriptionAr} onChange={(e) => setDescriptionAr(e.target.value)} dir="rtl" />
 
             <div className="rounded-xl bg-brand-50 border border-brand-100 px-3 py-2.5 flex gap-2 items-start">
               <ImageIcon className="h-4 w-4 text-brand-500 mt-0.5 shrink-0" />
               <p className="text-xs text-brand-700 leading-relaxed">
-                Product image is loaded from Bunny CDN using product SKU as image filename.
-                Upload images to Bunny Storage as <span className="font-mono">&#123;sku&#125;.jpg</span>.
-                Missing images fall back to a default basket image automatically.
+                Product image is loaded from Bunny CDN using the product SKU as the filename.
+                Upload as <span className="font-mono">&#123;sku&#125;.png</span>. Missing images
+                fall back to the default basket image automatically.
               </p>
             </div>
 
@@ -266,11 +213,34 @@ export function ProductDrawer({ open, onClose, onSaved, product }: Props) {
             )}
           </section>
 
+          {/* ─── Classification ───────────────────────────────────────── */}
           <section className="space-y-3">
-            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Category</h3>
+            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Classification</h3>
 
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-gray-700">Category</label>
+              <label className="text-sm font-medium text-gray-700">Brand *</label>
+              <select
+                value={brandId}
+                onChange={(e) => setBrandId(e.target.value)}
+                className={`w-full rounded-xl border px-4 py-3 text-sm focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100 ${
+                  errors.brandId ? 'border-red-400' : 'border-gray-200'
+                }`}
+              >
+                <option value="">Select brand...</option>
+                {brands.map((b) => (
+                  <option key={b.id} value={b.id}>{b.name}</option>
+                ))}
+              </select>
+              {errors.brandId && <p className="text-xs text-red-600">{errors.brandId}</p>}
+              {brands.length === 0 && (
+                <p className="text-xs text-amber-600">
+                  No brands found. Create at least one brand before adding products.
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-gray-700">Category *</label>
               <select
                 value={categoryId}
                 onChange={(e) => { setCategoryId(e.target.value); setSubcategoryId(''); }}
@@ -303,103 +273,48 @@ export function ProductDrawer({ open, onClose, onSaved, product }: Props) {
             )}
           </section>
 
+          {/* ─── Inventory & Pricing ──────────────────────────────────── */}
           <section className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Variants</h3>
-              <button
-                onClick={addVariant}
-                className="flex items-center gap-1.5 rounded-lg border border-brand-300 px-2.5 py-1 text-xs font-semibold text-brand-600 hover:bg-brand-50 transition-colors"
-              >
-                <Plus className="h-3 w-3" /> Add Variant
-              </button>
+            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Inventory &amp; Pricing</h3>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                label="SKU *"
+                placeholder="e.g. MILK-1L"
+                value={sku}
+                onChange={(e) => setSku(e.target.value)}
+                error={errors.sku}
+              />
+              <Input
+                label="Barcode (optional)"
+                placeholder="e.g. 6281234567890"
+                value={barcode}
+                onChange={(e) => setBarcode(e.target.value)}
+              />
             </div>
 
-            {variants.map((variant, i) => (
-              <div key={variant.id ?? `new-${i}`} className="rounded-xl border border-gray-200 p-4 space-y-3 bg-gray-50">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-gray-700">
-                    Variant {i + 1}{variant.id ? '' : ' (new)'}
-                  </span>
-                  {!variant.id && variants.length > 1 && (
-                    <button onClick={() => removeVariant(i)} className="text-red-400 hover:text-red-600 transition-colors">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-gray-700">Type</label>
-                  <div className="flex flex-wrap gap-2">
-                    {VARIANT_TYPES.map((t) => (
-                      <button
-                        key={t}
-                        type="button"
-                        disabled={Boolean(variant.id)}
-                        onClick={() => updateVariant(i, 'type', t)}
-                        className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
-                          variant.type === t
-                            ? 'border-brand-500 bg-brand-50 text-brand-600'
-                            : 'border-gray-200 text-gray-600 hover:border-brand-300'
-                        } ${variant.id ? 'opacity-60 cursor-not-allowed' : ''}`}
-                      >
-                        {VARIANT_LABELS[t]}
-                      </button>
-                    ))}
-                  </div>
-                  {variant.id && <p className="text-xs text-gray-400">Variant type can&apos;t be changed after creation.</p>}
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <Input
-                    label="SKU *"
-                    placeholder="e.g. MILK-1L-PC"
-                    value={variant.sku}
-                    onChange={(e) => updateVariant(i, 'sku', e.target.value)}
-                    error={errors[`sku_${i}`]}
-                    disabled={Boolean(variant.id)}
-                  />
-                  <Input
-                    label="Barcode"
-                    placeholder="Optional"
-                    value={variant.barcode}
-                    onChange={(e) => updateVariant(i, 'barcode', e.target.value)}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <Input
-                    label="Price (SAR) *"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    placeholder="0.00"
-                    value={variant.price}
-                    onChange={(e) => updateVariant(i, 'price', e.target.value)}
-                    error={errors[`price_${i}`]}
-                  />
-                  <Input
-                    label="Stock (units)"
-                    type="number"
-                    min="0"
-                    placeholder="0"
-                    value={variant.stock}
-                    onChange={(e) => updateVariant(i, 'stock', e.target.value)}
-                  />
-                </div>
-
-                {variant.id && (
-                  <label className="flex items-center gap-3 cursor-pointer pt-1">
-                    <input
-                      type="checkbox"
-                      checked={variant.isActive}
-                      onChange={(e) => updateVariant(i, 'isActive', e.target.checked)}
-                      className="accent-brand-500 h-4 w-4"
-                    />
-                    <span className="text-sm font-medium text-gray-700">Variant is visible (active)</span>
-                  </label>
-                )}
-              </div>
-            ))}
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                label="Price (SAR) *"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="0.00"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                error={errors.price}
+              />
+              <Input
+                label="Quantity *"
+                type="number"
+                min="0"
+                step="1"
+                placeholder="0"
+                value={quantity}
+                onChange={(e) => setQuantity(e.target.value)}
+                error={errors.quantity}
+              />
+            </div>
           </section>
         </div>
 

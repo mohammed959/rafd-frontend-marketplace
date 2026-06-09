@@ -5,7 +5,7 @@ import { useTranslations } from 'next-intl';
 import {
   LayoutDashboard, ShoppingBag, Package, Users, Settings, LogOut, Tag,
   Image as ImageIcon, Sparkles, Boxes, Truck, ClipboardCheck, UserCircle2, Bell,
-  Percent, ScrollText, FileSpreadsheet, MapPin, CalendarClock,
+  Percent, ScrollText, FileSpreadsheet, MapPin, CalendarClock, Award,
 } from 'lucide-react';
 import { useStaffAuthStore } from '@/stores/staffAuthStore';
 import { LanguageSwitcher } from '@/components/common/LanguageSwitcher';
@@ -32,6 +32,7 @@ export function AdminSidebar() {
       heading: t('admin.sectionCatalog'),
       items: [
         { href: '/admin/products',           icon: Package,         label: t('admin.products') },
+        { href: '/admin/brands',             icon: Award,           label: t('admin.brands') },
         { href: '/admin/categories',         icon: Tag,             label: t('admin.categories') },
         { href: '/admin/banners',            icon: ImageIcon,       label: t('admin.banners') },
         { href: '/admin/featured-sections',  icon: Sparkles,        label: t('admin.featuredSections') },

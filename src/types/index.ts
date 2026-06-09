@@ -59,27 +59,49 @@ export interface ProductVariant {
   available?: boolean;
 }
 
+export interface Brand {
+  id: string;
+  name: string;
+  nameAr: string;
+  slug: string;
+  imageUrl?: string | null;
+  isActive?: boolean;
+  sortOrder?: number;
+}
+
 export interface Product {
   id: string;
   name: string;
   nameAr: string;
   description: string | null;
+  descriptionAr?: string | null;
   imageUrl: string | null;
+  // Flat product-level commerce fields (Phase 1+). Legacy products may still
+  // have nulls until backfill runs; the admin UI enforces values for new
+  // products via Zod on the backend.
+  sku: string | null;
+  barcode: string | null;
+  price: number | string | null;
+  stock: number;
+  reserved: number;
   isFeatured: boolean;
   isActive: boolean;
   hideFromHome?: boolean;
-  category: { id: string; name: string; nameAr: string };
-  subcategory: { id: string; name: string; nameAr: string } | null;
+  category: { id: string; name: string; nameAr: string; slug?: string };
+  subcategory: { id: string; name: string; nameAr: string; slug?: string } | null;
+  brand: Brand | null;
+  // Legacy: still emitted by some endpoints for backwards-compat. Phase 4+
+  // drops the field from customer-facing responses entirely. Kept required
+  // (defaulting to []) so existing customer-side code type-checks until
+  // Phase 4 rewrites it.
   variants: ProductVariant[];
   available?: boolean;
 }
 
 export interface CartItem {
-  variantId: string;
   productId: string;
   productName: string;
   productImage: string | null;
-  variantType: VariantType;
   price: number;
   quantity: number;
 }
@@ -93,12 +115,41 @@ export interface OrderItem {
   status?: OrderItemStatus;
   replacedByItemId?: string | null;
   notes?: string | null;
+  // Phase 6: new flat product-level fields. Backend always populates
+  // `product` (either from the productId FK or by deriving it from
+  // legacy variant.product). `variant` is preserved for picker/driver
+  // workflows that haven't been retired yet.
+  productId?: string | null;
+  productSku?: string | null;
+  productBarcode?: string | null;
+  productName?: string | null;
+  productNameAr?: string | null;
+  product?: {
+    id: string;
+    name: string;
+    nameAr: string;
+    imageUrl: string | null;
+    sku?: string | null;
+    barcode?: string | null;
+  } | null;
+  // Backend always emits `variant` — for legacy orders it's the real
+  // variant row; for new flat orders it's synthesized from product
+  // fields so picker / driver / admin UIs keep working without code
+  // changes. `sku` is included so customer order-detail can show it
+  // without a separate lookup.
   variant: {
     id: string;
     type: VariantType;
     sku: string;
     price: number;
-    product: { id: string; name: string; nameAr: string; imageUrl: string | null };
+    product: {
+      id: string;
+      name: string;
+      nameAr: string;
+      imageUrl: string | null;
+      sku?: string | null;
+      barcode?: string | null;
+    };
   };
 }
 
@@ -165,11 +216,9 @@ export interface Notification {
 
 export interface ReorderResult {
   items: Array<{
-    variantId: string;
     productId: string;
     productName: string;
     productImage: string | null;
-    variantType: VariantType;
     price: number;
     quantity: number;
     priceChanged: boolean;
@@ -177,7 +226,6 @@ export interface ReorderResult {
   }>;
   skipped: Array<{
     productName: string;
-    variantType: VariantType;
     quantity: number;
     reason: string;
   }>;
@@ -185,13 +233,12 @@ export interface ReorderResult {
 
 export interface BuyAgainEntry {
   product: Product;
-  suggestedVariantId: string;
   orderCount: number;
 }
 
 export interface SearchResult {
   products: Product[];
-  matchedVariantId: string | null;
+  matchedProductId: string | null;
   pagination?: Pagination;
 }
 

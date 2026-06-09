@@ -46,7 +46,7 @@ export function BuyAgainStrip() {
             ))
           : data!.map((entry) => (
               <div key={entry.product.id} className="w-40 shrink-0 snap-start">
-                <ProductCard product={entry.product} initialVariantId={entry.suggestedVariantId} />
+                <ProductCard product={entry.product} />
               </div>
             ))}
       </div>

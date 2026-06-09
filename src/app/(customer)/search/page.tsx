@@ -91,7 +91,6 @@ export default function SearchPage() {
 
   const hasQuery = trimmedQuery.length > 0;
   const products = barcodeMode ? barcodeResults?.products ?? [] : textResults;
-  const matchedVariantId = barcodeMode ? barcodeResults?.matchedVariantId : null;
   const searching = barcodeMode ? barcodeSearching : textSearching && textResults.length === 0;
   const totalShown = products.length;
   const totalItems = barcodeMode ? (barcodeResults?.products.length ?? 0) : textTotalItems;
@@ -239,11 +238,7 @@ export default function SearchPage() {
                 </div>
                 <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 md:grid-cols-5 lg:grid-cols-6">
                   {products.map((product) => (
-                    <ProductCard
-                      key={product.id}
-                      product={product}
-                      initialVariantId={matchedVariantId ?? undefined}
-                    />
+                    <ProductCard key={product.id} product={product} />
                   ))}
                 </div>
                 {textMode && (

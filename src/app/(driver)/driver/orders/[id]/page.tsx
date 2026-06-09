@@ -9,7 +9,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { ArrowLeft, Phone, Navigation, MapPin, StickyNote, CheckCircle2, X } from 'lucide-react';
 import api from '@/lib/api';
 import { Order } from '@/types';
-import { formatPrice, variantLabelLocalized } from '@/lib/utils';
+import { formatPrice } from '@/lib/utils';
 import { useLocale, pickLocalized } from '@/i18n/useLocale';
 import { Button } from '@/components/ui/Button';
 import { PageSpinner } from '@/components/ui/Spinner';
@@ -132,15 +132,23 @@ export default function DriverOrderPage() {
 
       <div className="rounded-2xl bg-white border border-gray-100 p-4 space-y-3">
         <p className="font-semibold text-gray-900">{t('orders.items')}</p>
-        {order.items.map((item) => (
-          <div key={item.id} className="flex justify-between items-center text-sm">
-            <div className="min-w-0">
-              <p className="font-medium text-gray-800 truncate">{pickLocalized(item.variant.product, locale)}</p>
-              <p className="text-xs text-gray-500">{variantLabelLocalized(item.variant.type, locale)} × {item.quantity}</p>
+        {order.items.map((item) => {
+          const productEntity = item.product ?? item.variant?.product ?? null;
+          const name = item.productName
+            ? (locale === 'ar' && item.productNameAr ? item.productNameAr : item.productName)
+            : productEntity
+              ? pickLocalized(productEntity, locale)
+              : '—';
+          return (
+            <div key={item.id} className="flex justify-between items-center text-sm">
+              <div className="min-w-0">
+                <p className="font-medium text-gray-800 truncate">{name}</p>
+                <p className="text-xs text-gray-500">× {item.quantity}</p>
+              </div>
+              <p className="font-semibold text-gray-900 ms-3 shrink-0">{formatPrice(item.total)}</p>
             </div>
-            <p className="font-semibold text-gray-900 ms-3 shrink-0">{formatPrice(item.total)}</p>
-          </div>
-        ))}
+          );
+        })}
         <div className="border-t pt-2 flex justify-between font-bold text-sm">
           <span>{t('cart.total')}</span>
           <span className="text-brand-600">{formatPrice(order.total)}</span>

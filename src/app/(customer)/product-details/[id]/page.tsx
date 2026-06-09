@@ -1,5 +1,4 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ProductImage } from '@/components/common/ProductImage';
 import Link from 'next/link';
@@ -9,18 +8,22 @@ import { useTranslations } from 'next-intl';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Share2, Plus, Minus, ChevronRight, Heart } from 'lucide-react';
 import api from '@/lib/api';
-import { Product, ProductVariant } from '@/types';
+import { Product } from '@/types';
 import { useCartStore } from '@/stores/cartStore';
 import { useFavoritesStore } from '@/stores/favoritesStore';
 import { useCustomerAuthStore } from '@/stores/customerAuthStore';
 import { useLocale, pickLocalized } from '@/i18n/useLocale';
-import { formatPrice, variantLabelLocalized, cn } from '@/lib/utils';
+import { formatPrice, cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/Skeleton';
 
 const fetcher = (url: string) => api.get(url).then((r) => r.data.data);
 
-function variantAvailable(v: ProductVariant): boolean {
-  return v.available ?? (v.isActive && v.stock - v.reserved > 0);
+function productAvailable(p: Product): boolean {
+  if (p.available != null) return p.available;
+  if (!p.isActive) return false;
+  const stock = p.stock ?? 0;
+  const reserved = p.reserved ?? 0;
+  return stock - reserved > 0;
 }
 
 export default function ProductDetailsPage({ params }: { params: { id: string } }) {
@@ -30,23 +33,12 @@ export default function ProductDetailsPage({ params }: { params: { id: string } 
   const { data: product, isLoading, error } = useSWR<Product>(`/products/${params.id}`, fetcher);
 
   const items = useCartStore((s) => s.items);
-  const addItem = useCartStore((s) => s.addItem);
+  const addProduct = useCartStore((s) => s.addProduct);
   const updateQuantity = useCartStore((s) => s.updateQuantity);
 
   const isAuth = useCustomerAuthStore((s) => s.isAuthenticated);
   const isFav = useFavoritesStore((s) => product ? s.ids.has(product.id) : false);
   const toggleFav = useFavoritesStore((s) => s.toggle);
-
-  const defaultVariant = useMemo(() => {
-    if (!product) return null;
-    return product.variants.find(variantAvailable) ?? product.variants[0] ?? null;
-  }, [product]);
-
-  const [selected, setSelected] = useState<ProductVariant | null>(null);
-
-  useEffect(() => {
-    if (defaultVariant && !selected) setSelected(defaultVariant);
-  }, [defaultVariant, selected]);
 
   if (isLoading) {
     return (
@@ -70,16 +62,15 @@ export default function ProductDetailsPage({ params }: { params: { id: string } 
     );
   }
 
-  const variant = selected ?? defaultVariant;
-  if (!variant) return null;
-
   const productName = pickLocalized(product, locale);
   const productAlt  = locale === 'ar' ? product.name : product.nameAr;
+  const description = locale === 'ar' ? product.descriptionAr : product.description;
   const categoryName    = product.category ? pickLocalized(product.category, locale) : '';
   const subcategoryName = product.subcategory ? pickLocalized(product.subcategory, locale) : '';
+  const brandName       = product.brand ? pickLocalized(product.brand, locale) : null;
 
-  const cartItem = items.find((i) => i.variantId === variant.id);
-  const available = variantAvailable(variant);
+  const cartItem = items.find((i) => i.productId === product.id);
+  const available = productAvailable(product);
 
   const handleShare = async () => {
     if (typeof navigator === 'undefined') return;
@@ -109,16 +100,9 @@ export default function ProductDetailsPage({ params }: { params: { id: string } 
   const handleAdd = () => {
     if (!available) return;
     if (cartItem) {
-      updateQuantity(variant.id, cartItem.quantity + 1);
+      updateQuantity(product.id, cartItem.quantity + 1);
     } else {
-      addItem({
-        variantId: variant.id,
-        productId: product.id,
-        productName: product.name,
-        productImage: product.imageUrl,
-        variantType: variant.type,
-        price: variant.price,
-      });
+      addProduct(product);
     }
     toast.success(t('products.addToCart'));
   };
@@ -205,6 +189,11 @@ export default function ProductDetailsPage({ params }: { params: { id: string } 
           {/* Info */}
           <div className="sm:col-span-7 flex flex-col gap-3 sm:pt-1">
             <div>
+              {brandName && (
+                <p className="text-[11px] uppercase tracking-wider font-semibold text-brand-600">
+                  {brandName}
+                </p>
+              )}
               <h1 className="text-xl sm:text-2xl font-black text-gray-900 leading-tight">
                 {productName}
               </h1>
@@ -217,10 +206,7 @@ export default function ProductDetailsPage({ params }: { params: { id: string } 
 
             <div className="flex items-baseline gap-1.5">
               <span className="text-3xl sm:text-4xl font-black text-gray-900 leading-none">
-                {formatPrice(variant.price)}
-              </span>
-              <span className="text-[11px] font-medium text-gray-400">
-                per {variantLabelLocalized(variant.type, locale)}
+                {product.price != null ? formatPrice(product.price) : '—'}
               </span>
             </div>
 
@@ -242,7 +228,7 @@ export default function ProductDetailsPage({ params }: { params: { id: string } 
                 <div className="flex flex-1 items-center justify-between gap-2 rounded-full bg-gradient-to-r from-brand-500 to-brand-600 px-1.5 py-1 text-white shadow-soft">
                   <motion.button
                     type="button"
-                    onClick={() => updateQuantity(variant.id, cartItem.quantity - 1)}
+                    onClick={() => updateQuantity(product.id, cartItem.quantity - 1)}
                     whileTap={{ scale: 0.9 }}
                     transition={{ type: 'spring', stiffness: 420, damping: 26 }}
                     aria-label="−"
@@ -258,7 +244,7 @@ export default function ProductDetailsPage({ params }: { params: { id: string } 
                   </div>
                   <motion.button
                     type="button"
-                    onClick={() => updateQuantity(variant.id, cartItem.quantity + 1)}
+                    onClick={() => updateQuantity(product.id, cartItem.quantity + 1)}
                     whileTap={{ scale: 0.9 }}
                     transition={{ type: 'spring', stiffness: 420, damping: 26 }}
                     aria-label="+"
@@ -302,46 +288,14 @@ export default function ProductDetailsPage({ params }: { params: { id: string } 
       </section>
 
       {/* About this product */}
-      <section className="mx-4 mb-4 rounded-3xl bg-white p-5 shadow-soft">
-        <h2 className="font-bold text-gray-900 mb-2">{t('products.description')}</h2>
-        <p className="text-sm text-gray-600 leading-relaxed">
-          {product.description ?? '—'}
-        </p>
-      </section>
-
-      {product.variants.length > 1 && (
-        <section className="mx-4 mb-4 rounded-3xl bg-white p-5 shadow-soft space-y-2">
-          <label className="text-[10px] uppercase tracking-wider text-gray-400">
-            {t('products.chooseSize')}
-          </label>
-          <div className="relative">
-            <select
-              value={variant.id}
-              onChange={(e) => {
-                const v = product.variants.find((x) => x.id === e.target.value);
-                if (v) setSelected(v);
-              }}
-              className="
-                w-full appearance-none rounded-2xl border border-gray-200 bg-white
-                px-4 py-3 pe-10 text-sm font-semibold text-gray-900
-                focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100
-              "
-            >
-              {product.variants.map((v) => {
-                const ok = variantAvailable(v);
-                return (
-                  <option key={v.id} value={v.id} disabled={!ok}>
-                    {variantLabelLocalized(v.type, locale)} · {formatPrice(v.price)}
-                    {!ok ? ` (${t('products.outOfStock')})` : ''}
-                  </option>
-                );
-              })}
-            </select>
-            <ChevronRight className="pointer-events-none absolute end-3 top-1/2 h-4 w-4 -translate-y-1/2 rotate-90 text-gray-400" />
-          </div>
+      {description && (
+        <section className="mx-4 mb-4 rounded-3xl bg-white p-5 shadow-soft">
+          <h2 className="font-bold text-gray-900 mb-2">{t('products.description')}</h2>
+          <p className="text-sm text-gray-600 leading-relaxed">
+            {description}
+          </p>
         </section>
       )}
-
     </div>
   );
 }

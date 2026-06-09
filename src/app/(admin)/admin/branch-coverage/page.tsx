@@ -37,6 +37,15 @@ interface DeliverySettings {
   feePerKm: number | string;
   minimumFee: number | string;
   maximumFee: number | string;
+  roadDistanceMultiplier?: number | string | null;
+  freeDeliveryEnabled?: boolean | null;
+  freeDeliveryThreshold?: number | string | null;
+}
+
+interface MinimumOrderSettings {
+  id?: string;
+  enabled: boolean;
+  minimumAmount: number | string;
 }
 
 interface DistanceRuleRow {
@@ -88,6 +97,7 @@ export default function BranchCoveragePage() {
 
   const { data: branchData, mutate: mutateBranch, isLoading: loadingBranch } = useSWR<BranchData>('/delivery/branch', fetcher);
   const { data: settings,    mutate: mutateSettings, isLoading: loadingSettings } = useSWR<DeliverySettings | null>('/delivery/settings', fetcher);
+  const { data: minOrder,    mutate: mutateMinOrder, isLoading: loadingMinOrder } = useSWR<MinimumOrderSettings | null>('/delivery/minimum-order', fetcher);
   const { data: rulesApi,    mutate: mutateRules,    isLoading: loadingRules }   = useSWR<DistanceRuleApi[]>('/delivery/distance-rules', fetcher);
 
   const [name, setName] = useState('');
@@ -100,6 +110,13 @@ export default function BranchCoveragePage() {
   const [deliveryEnabled, setDeliveryEnabled] = useState(true);
   const [distanceRulesEnabled, setDistanceRulesEnabled] = useState(false);
   const [maxDeliveryKm, setMaxDeliveryKm] = useState('');
+  const [roadMultiplier, setRoadMultiplier] = useState('1.00');
+  // Phase 4: free-delivery threshold and minimum-order amount are now
+  // configured here too, not in /admin/settings.
+  const [freeDeliveryEnabled, setFreeDeliveryEnabled] = useState(false);
+  const [freeDeliveryThreshold, setFreeDeliveryThreshold] = useState('');
+  const [minOrderEnabled, setMinOrderEnabled] = useState(false);
+  const [minOrderAmount, setMinOrderAmount] = useState('');
   const [savingSettings, setSavingSettings] = useState(false);
 
   const [rules, setRules] = useState<DistanceRuleRow[]>([emptyRule]);
@@ -120,7 +137,22 @@ export default function BranchCoveragePage() {
     setDeliveryEnabled(Boolean(settings.deliveryEnabled));
     setDistanceRulesEnabled(Boolean(settings.distanceRulesEnabled));
     setMaxDeliveryKm(settings.maxDeliveryKm != null ? String(settings.maxDeliveryKm) : '');
+    setRoadMultiplier(
+      settings.roadDistanceMultiplier != null
+        ? String(settings.roadDistanceMultiplier)
+        : '1.00',
+    );
+    setFreeDeliveryEnabled(Boolean(settings.freeDeliveryEnabled));
+    setFreeDeliveryThreshold(
+      settings.freeDeliveryThreshold != null ? String(settings.freeDeliveryThreshold) : '',
+    );
   }, [settings]);
+
+  useEffect(() => {
+    if (!minOrder) return;
+    setMinOrderEnabled(Boolean(minOrder.enabled));
+    setMinOrderAmount(minOrder.minimumAmount != null ? String(minOrder.minimumAmount) : '');
+  }, [minOrder]);
 
   useEffect(() => {
     if (!rulesApi) return;
@@ -179,19 +211,53 @@ export default function BranchCoveragePage() {
     if (numericMax != null && (!Number.isFinite(numericMax) || numericMax <= 0)) {
       return toast.error('Maximum distance must be greater than 0.');
     }
+    const numericMultiplier = roadMultiplier.trim() === '' ? 1 : Number(roadMultiplier);
+    if (!Number.isFinite(numericMultiplier) || numericMultiplier < 0.5 || numericMultiplier > 3) {
+      return toast.error('Road distance multiplier must be between 0.5 and 3.0.');
+    }
+
+    // Free-delivery threshold: amount required when enabled.
+    let freeThresholdValue: number | null = null;
+    if (freeDeliveryEnabled) {
+      const v = Number(freeDeliveryThreshold);
+      if (!Number.isFinite(v) || v < 0) {
+        return toast.error('Free delivery threshold must be 0 or greater.');
+      }
+      freeThresholdValue = v;
+    }
+
+    // Minimum order: amount required when enabled.
+    let minOrderValue = 0;
+    if (minOrderEnabled) {
+      const v = Number(minOrderAmount);
+      if (!Number.isFinite(v) || v <= 0) {
+        return toast.error('Minimum order amount must be greater than 0.');
+      }
+      minOrderValue = v;
+    }
+
     setSavingSettings(true);
     try {
-      await api.put('/delivery/settings', {
-        deliveryEnabled,
-        distanceRulesEnabled,
-        maxDeliveryKm: numericMax,
-        // keep existing fee shape; admin sets per-range below
-        baseFee: settings ? Number(settings.baseFee) : 0,
-        feePerKm: settings ? Number(settings.feePerKm) : 0,
-        minimumFee: settings ? Number(settings.minimumFee) : 0,
-        maximumFee: settings ? Number(settings.maximumFee) : 999,
-      });
-      await mutateSettings();
+      // Phase 4: the single source of truth is /admin/branch-coverage,
+      // so this handler now writes both the delivery-pricing settings
+      // (free threshold + coverage) and the minimum-order singleton in
+      // parallel. Phase 2's Zod whitelist strips any legacy fee fields
+      // we still need to round-trip, so we only send what the calc reads.
+      await Promise.all([
+        api.put('/delivery/settings', {
+          deliveryEnabled,
+          distanceRulesEnabled,
+          maxDeliveryKm: numericMax,
+          roadDistanceMultiplier: Math.round(numericMultiplier * 100) / 100,
+          freeDeliveryEnabled,
+          freeDeliveryThreshold: freeThresholdValue,
+        }),
+        api.put('/delivery/minimum-order', {
+          enabled: minOrderEnabled,
+          minimumAmount: minOrderValue,
+        }),
+      ]);
+      await Promise.all([mutateSettings(), mutateMinOrder()]);
       toast.success('Coverage settings saved');
     } catch (err: any) {
       toast.error(err.response?.data?.message ?? 'Failed to save');
@@ -234,7 +300,7 @@ export default function BranchCoveragePage() {
     }
   };
 
-  if (loadingBranch || loadingSettings || loadingRules) return <PageSpinner />;
+  if (loadingBranch || loadingSettings || loadingMinOrder || loadingRules) return <PageSpinner />;
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -329,6 +395,89 @@ export default function BranchCoveragePage() {
           onChange={(e) => setMaxDeliveryKm(e.target.value)}
           placeholder="e.g. 20"
         />
+
+        <div className="space-y-1.5">
+          <Input
+            label="Road distance multiplier"
+            type="number"
+            inputMode="decimal"
+            min="0.5"
+            max="3"
+            step="0.05"
+            value={roadMultiplier}
+            onChange={(e) => setRoadMultiplier(e.target.value)}
+            placeholder="1.00"
+          />
+          <p className="text-xs text-gray-500 leading-relaxed">
+            The system uses straight-line distance (haversine) between the branch and the customer.
+            Real driving distance is usually longer. Use this multiplier to calibrate it:
+            <strong> 1.00</strong> = use straight-line as-is, <strong> 1.30–1.45</strong> is typical for dense urban
+            areas, <strong> 1.50</strong> or higher for suburbs with limited road connectivity. Allowed range:
+            0.50 – 3.00.
+          </p>
+        </div>
+
+        {/* ─── Free delivery threshold ───────────────────────────────── */}
+        <div className="space-y-2 border-t pt-4">
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={freeDeliveryEnabled}
+              onChange={(e) => setFreeDeliveryEnabled(e.target.checked)}
+              className="accent-brand-500 h-4 w-4"
+            />
+            <span className="text-sm font-medium text-gray-700">
+              Enable free delivery threshold
+            </span>
+          </label>
+          {freeDeliveryEnabled && (
+            <Input
+              label="Threshold amount (SAR)"
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="1"
+              value={freeDeliveryThreshold}
+              onChange={(e) => setFreeDeliveryThreshold(e.target.value)}
+              placeholder="e.g. 100"
+            />
+          )}
+          <p className="text-xs text-gray-500 leading-relaxed">
+            When the customer's cart subtotal is at or above this amount, delivery becomes free for
+            non-subscribed customers. Subscribed customers still follow their plan&apos;s delivery logic.
+          </p>
+        </div>
+
+        {/* ─── Minimum order amount ─────────────────────────────────── */}
+        <div className="space-y-2 border-t pt-4">
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={minOrderEnabled}
+              onChange={(e) => setMinOrderEnabled(e.target.checked)}
+              className="accent-brand-500 h-4 w-4"
+            />
+            <span className="text-sm font-medium text-gray-700">
+              Enforce minimum order amount
+            </span>
+          </label>
+          {minOrderEnabled && (
+            <Input
+              label="Minimum amount (SAR)"
+              type="number"
+              inputMode="decimal"
+              min="0"
+              step="1"
+              value={minOrderAmount}
+              onChange={(e) => setMinOrderAmount(e.target.value)}
+              placeholder="e.g. 30"
+            />
+          )}
+          <p className="text-xs text-gray-500 leading-relaxed">
+            Carts below this amount cannot proceed to checkout or place an order. Applies to every
+            customer, including subscribed customers.
+          </p>
+        </div>
 
         <Button variant="secondary" loading={savingSettings} onClick={saveSettings}>
           <Save className="h-4 w-4" /> Save coverage settings

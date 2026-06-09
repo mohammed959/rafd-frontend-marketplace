@@ -39,8 +39,13 @@ export default function FavoritesPage() {
   );
 
   const favorites = data ?? [];
-  const unavailable = favorites.filter((f) => !f.product.isActive || f.product.variants.length === 0);
-  const available = favorites.filter((f) => f.product.isActive && f.product.variants.length > 0);
+  const isInStock = (p: { isActive: boolean; available?: boolean; stock?: number; reserved?: number }) => {
+    if (!p.isActive) return false;
+    if (p.available != null) return p.available;
+    return (p.stock ?? 0) - (p.reserved ?? 0) > 0;
+  };
+  const unavailable = favorites.filter((f) => !isInStock(f.product));
+  const available = favorites.filter((f) => isInStock(f.product));
 
   if (!hydrated) return <ProductGridSkeleton count={6} />;
 

@@ -8,12 +8,12 @@ import useSWR from 'swr';
 import toast from 'react-hot-toast';
 import { useTranslations } from 'next-intl';
 import {
-  ArrowLeft, CheckCircle2, Package, Replace, AlertTriangle, Trash2,
+  ArrowLeft, CheckCircle2, Replace, AlertTriangle, Trash2,
   Plus, X, Search,
 } from 'lucide-react';
 import api from '@/lib/api';
-import { Order, OrderItem, OrderItemStatus, Product, ProductVariant } from '@/types';
-import { formatPrice, variantLabelLocalized, cn } from '@/lib/utils';
+import { Order, OrderItem, OrderItemStatus, Product } from '@/types';
+import { formatPrice, cn } from '@/lib/utils';
 import { useLocale, pickLocalized } from '@/i18n/useLocale';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -38,6 +38,25 @@ const STATUS_KEY: Record<OrderItemStatus, string> = {
   REPLACED:    'picker.replace',
   REMOVED:     'picker.remove',
 };
+
+/**
+ * Resolve a localized display name + Bunny image + SKU for an order item,
+ * preferring the Phase 6 snapshot fields and falling back through the
+ * embedded product / legacy variant relations so legacy orders keep
+ * rendering without code changes.
+ */
+function readItem(item: OrderItem, locale: 'en' | 'ar') {
+  const productEntity = item.product ?? item.variant?.product ?? null;
+  const name = item.productName
+    ? (locale === 'ar' && item.productNameAr ? item.productNameAr : item.productName)
+    : productEntity
+      ? pickLocalized(productEntity, locale)
+      : '—';
+  const sku = item.productSku ?? productEntity?.sku ?? item.variant?.sku ?? null;
+  const barcode = item.productBarcode ?? productEntity?.barcode ?? null;
+  const imageUrl = productEntity?.imageUrl ?? null;
+  return { name, sku, barcode, imageUrl };
+}
 
 export default function PickerOrderPage() {
   const t = useTranslations();
@@ -116,7 +135,7 @@ export default function PickerOrderPage() {
             const status = (item.status ?? 'PENDING') as OrderItemStatus;
             const style = STATUS_STYLE[status];
             const isFinal = status === 'REPLACED' || status === 'REMOVED';
-            const productName = pickLocalized(item.variant.product, locale);
+            const { name, sku, barcode, imageUrl } = readItem(item, locale);
             return (
               <div
                 key={item.id}
@@ -127,12 +146,16 @@ export default function PickerOrderPage() {
               >
                 <div className="flex gap-3 items-center">
                   <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg bg-gray-100">
-                    <ProductImage src={item.variant.product.imageUrl} alt={productName} fill sizes="48px" className="object-cover" />
+                    <ProductImage src={imageUrl} alt={name} fill sizes="48px" className="object-cover" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-gray-900 truncate">{productName}</p>
+                    <p className="text-sm font-semibold text-gray-900 truncate">{name}</p>
+                    <p className="text-xs text-gray-500 truncate">
+                      × {item.quantity}{sku ? ` · SKU ${sku}` : ''}
+                      {barcode ? ` · ${barcode}` : ''}
+                    </p>
                     <p className="text-xs text-gray-500">
-                      {variantLabelLocalized(item.variant.type, locale)} × {item.quantity} · SKU {item.variant.sku}
+                      {formatPrice(item.unitPrice)} {t('cart.items')}
                     </p>
                     {item.notes && (
                       <p className="text-[11px] text-violet-600 mt-0.5 italic">{item.notes}</p>
@@ -247,7 +270,7 @@ function ReplaceItemSheet({
   const t = useTranslations();
   const locale = useLocale();
   const [query, setQuery] = useState('');
-  const [selected, setSelected] = useState<{ product: Product; variant: ProductVariant } | null>(null);
+  const [selected, setSelected] = useState<Product | null>(null);
   const [qty, setQty] = useState(String(item.quantity));
   const [saving, setSaving] = useState(false);
 
@@ -256,13 +279,14 @@ function ReplaceItemSheet({
     fetcher
   );
   const products = data?.products ?? [];
+  const original = readItem(item, locale);
 
   const submit = async () => {
     if (!selected) return toast.error(t('picker.replace'));
     setSaving(true);
     try {
       await api.post(`/orders/${orderId}/items/${item.id}/replace`, {
-        variantId: selected.variant.id,
+        productId: selected.id,
         quantity: Number(qty) > 0 ? Number(qty) : undefined,
       });
       toast.success(t('picker.replace'));
@@ -284,9 +308,7 @@ function ReplaceItemSheet({
         <div className="flex items-center justify-between border-b px-5 py-3">
           <div>
             <h2 className="font-bold text-gray-900">{t('picker.replace')}</h2>
-            <p className="text-xs text-gray-500 mt-0.5 truncate">
-              {pickLocalized(item.variant.product, locale)}
-            </p>
+            <p className="text-xs text-gray-500 mt-0.5 truncate">{original.name}</p>
           </div>
           <button onClick={onClose} className="rounded-lg p-1.5 hover:bg-gray-100">
             <X className="h-5 w-5 text-gray-500" />
@@ -314,40 +336,42 @@ function ReplaceItemSheet({
           ) : products.length === 0 ? (
             <p className="text-sm text-gray-500 py-4 text-center">{t('products.noProducts')}</p>
           ) : (
-            <ul className="space-y-3">
+            <ul className="space-y-2">
               {products.map((p) => {
                 const productName = pickLocalized(p, locale);
+                const stock = p.stock ?? 0;
+                const reserved = p.reserved ?? 0;
+                const available = p.available ?? (p.isActive && stock - reserved > 0);
+                const isSel = selected?.id === p.id;
                 return (
-                  <li key={p.id} className="rounded-xl border border-gray-100 p-3">
-                    <div className="flex items-center gap-3 mb-2">
+                  <li key={p.id}>
+                    <button
+                      type="button"
+                      disabled={!available}
+                      onClick={() => setSelected(p)}
+                      className={cn(
+                        'w-full flex items-center gap-3 rounded-xl border p-3 text-start transition-colors',
+                        isSel
+                          ? 'border-brand-500 bg-brand-50'
+                          : 'border-gray-100 hover:border-brand-300',
+                        !available && 'opacity-50 cursor-not-allowed'
+                      )}
+                    >
                       <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-gray-100">
                         <ProductImage src={p.imageUrl} alt={productName} fill sizes="40px" className="object-cover" />
                       </div>
-                      <p className="text-sm font-semibold text-gray-900 truncate flex-1">{productName}</p>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {p.variants.map((v) => {
-                        const available = (v.available ?? v.stock - v.reserved > 0);
-                        const isSel = selected?.variant.id === v.id;
-                        return (
-                          <button
-                            key={v.id}
-                            type="button"
-                            disabled={!available}
-                            onClick={() => setSelected({ product: p, variant: v })}
-                            className={cn(
-                              'rounded-lg border px-2.5 py-1 text-xs font-semibold transition-colors',
-                              isSel
-                                ? 'border-brand-500 bg-brand-50 text-brand-700'
-                                : 'border-gray-200 text-gray-700 hover:border-brand-300',
-                              !available && 'opacity-50 line-through cursor-not-allowed'
-                            )}
-                          >
-                            {variantLabelLocalized(v.type, locale)} · {formatPrice(v.price)}
-                          </button>
-                        );
-                      })}
-                    </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900 truncate">{productName}</p>
+                        <p className="text-xs text-gray-500 truncate">
+                          {p.sku ? `SKU ${p.sku}` : ''}
+                          {p.sku && available ? ' · ' : ''}
+                          {available ? `${stock - reserved} ${t('cart.items')}` : t('products.outOfStock')}
+                        </p>
+                      </div>
+                      <p className="text-sm font-bold text-brand-600 shrink-0">
+                        {p.price != null ? formatPrice(p.price) : '—'}
+                      </p>
+                    </button>
                   </li>
                 );
               })}
@@ -358,7 +382,8 @@ function ReplaceItemSheet({
         {selected && (
           <div className="border-t bg-gray-50 px-5 py-3">
             <p className="text-xs text-gray-500 mb-2">
-              <span className="font-semibold text-gray-800">{pickLocalized(selected.product, locale)}</span> ({variantLabelLocalized(selected.variant.type, locale)})
+              <span className="font-semibold text-gray-800">{pickLocalized(selected, locale)}</span>
+              {selected.sku ? ` · SKU ${selected.sku}` : ''}
             </p>
             <div className="grid grid-cols-3 gap-2">
               <Input label={t('cart.items')} type="number" min="1" value={qty} onChange={(e) => setQty(e.target.value)} />

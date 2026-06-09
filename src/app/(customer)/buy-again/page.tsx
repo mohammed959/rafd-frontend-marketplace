@@ -62,7 +62,7 @@ export default function BuyAgainPage() {
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 md:grid-cols-5 lg:grid-cols-6">
           {entries.map((entry) => (
             <div key={entry.product.id} className="relative">
-              <ProductCard product={entry.product} initialVariantId={entry.suggestedVariantId} />
+              <ProductCard product={entry.product} />
               {entry.orderCount > 1 && (
                 <span className="pointer-events-none absolute start-2 top-2 z-10 rounded-full bg-brand-500/95 px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
                   ×{entry.orderCount}

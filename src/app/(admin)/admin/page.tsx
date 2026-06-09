@@ -8,19 +8,16 @@ import {
   ClipboardCheck, UserCheck, TrendingUp,
 } from 'lucide-react';
 import api from '@/lib/api';
-import { VariantType } from '@/types';
 import { StatsCard } from '@/components/admin/StatsCard';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { useLocale, pickLocalized } from '@/i18n/useLocale';
-import { variantLabelLocalized } from '@/lib/utils';
 
 const fetcher = (url: string) => api.get(url).then((r) => r.data.data);
 
 interface MostOrdered {
-  variantId: string;
+  productId: string;
   quantitySold: number;
-  variantType: VariantType | null;
-  product: { id: string; name: string; nameAr: string; imageUrl: string | null } | null;
+  product: { id: string; name: string; nameAr: string; imageUrl: string | null; sku?: string | null } | null;
 }
 
 interface DashboardStats {
@@ -159,7 +156,7 @@ export default function AdminDashboardPage() {
           ) : (
             <ol className="divide-y divide-gray-50">
               {stats.mostOrdered.map((row, i) => (
-                <li key={row.variantId} className="flex items-center gap-3 px-4 py-3">
+                <li key={row.productId} className="flex items-center gap-3 px-4 py-3">
                   <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-50 text-xs font-bold text-brand-600">
                     {i + 1}
                   </div>
@@ -170,8 +167,8 @@ export default function AdminDashboardPage() {
                     <p className="text-sm font-semibold text-gray-900 truncate">
                       {row.product ? pickLocalized(row.product, locale) : ''}
                     </p>
-                    {row.variantType && (
-                      <p className="text-xs text-gray-500">{variantLabelLocalized(row.variantType, locale)}</p>
+                    {row.product?.sku && (
+                      <p className="text-xs text-gray-500">SKU {row.product.sku}</p>
                     )}
                   </div>
                   <div className="flex items-center gap-1.5 text-sm font-bold text-brand-600 shrink-0">

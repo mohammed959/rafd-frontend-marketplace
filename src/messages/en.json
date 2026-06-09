@@ -117,6 +117,14 @@
     "noCategories": "No categories yet",
     "subcategoriesLabel": "{count} subcategories"
   },
+  "brands": {
+    "title": "Brands",
+    "noBrands": "No brands yet",
+    "noBrandsHint": "Add at least one brand before creating products — every product must belong to a brand.",
+    "confirmDeleteTitle": "Delete brand?",
+    "confirmDeleteBody": "Are you sure you want to delete \"{name}\"?",
+    "confirmDeleteHint": "If any products still reference this brand, it will be disabled instead of deleted."
+  },
   "cart": {
     "yourCart": "Your cart",
     "empty": "Your cart is empty",
@@ -326,6 +334,7 @@
     "to": "To",
     "otherDateHint": "Range always excludes today's orders.",
     "products": "Products",
+    "brands": "Brands",
     "categories": "Categories",
     "banners": "Banners",
     "featuredSections": "Featured sections",

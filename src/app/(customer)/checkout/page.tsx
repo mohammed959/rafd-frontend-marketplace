@@ -14,8 +14,7 @@ import { useCartStore } from '@/stores/cartStore';
 import { useCustomerAuthStore } from '@/stores/customerAuthStore';
 import { useLocationStore } from '@/stores/locationStore';
 import { CustomerSubscription, Order, PaymentMethod, FulfillmentType } from '@/types';
-import { formatPrice, variantLabelLocalized, cn } from '@/lib/utils';
-import { useLocale } from '@/i18n/useLocale';
+import { formatPrice, cn } from '@/lib/utils';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { InlineOtpLogin } from '@/components/customer/InlineOtpLogin';
@@ -57,7 +56,6 @@ interface DeliveryQuote {
 export default function CheckoutPage() {
   const router = useRouter();
   const t = useTranslations();
-  const locale = useLocale();
   // Checkout is scoped to the customer auth store ONLY. A staff session that
   // happens to live in the same browser is invisible here.
   const isAuthenticated = useCustomerAuthStore((s) => s.isAuthenticated);
@@ -194,7 +192,7 @@ export default function CheckoutPage() {
           scheduledPickupDate: pickupSchedule.scheduledPickupDate,
           scheduledPickupSlotId: pickupSchedule.scheduledPickupSlotId,
         }),
-        items: items.map((i) => ({ variantId: i.variantId, quantity: i.quantity })),
+        items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
       });
       const created = res.data.data;
       clearCart();
@@ -208,7 +206,10 @@ export default function CheckoutPage() {
   };
 
   const subBenefitLabel = (() => {
-    if (!subscription || isPickup) return null;
+    // Phase 6: subscription benefit only applies when home delivery is
+    // actually eligible. Max-distance gate has higher priority than
+    // subscription, so an out-of-range subscriber sees no banner.
+    if (!subscription || isPickup || !deliveryAvailable) return null;
     switch (subscription.plan.benefitType) {
       case 'FREE_DELIVERY':       return t('checkout.subscriptionFree');
       case 'DISCOUNTED_DELIVERY': return t('checkout.subscriptionDiscounted');
@@ -387,10 +388,10 @@ export default function CheckoutPage() {
       <div className="rounded-2xl bg-white border border-gray-100 p-4 space-y-3">
         <p className="font-semibold text-gray-900">{t('checkout.orderItems')} ({items.length})</p>
         {items.map((item) => (
-          <div key={item.variantId} className="flex justify-between items-center text-sm">
+          <div key={item.productId} className="flex justify-between items-center text-sm">
             <div className="min-w-0">
               <p className="font-medium text-gray-800 truncate">{item.productName}</p>
-              <p className="text-xs text-gray-500">{variantLabelLocalized(item.variantType, locale)} × {item.quantity}</p>
+              <p className="text-xs text-gray-500">× {item.quantity}</p>
             </div>
             <p className="font-semibold text-gray-900 shrink-0 ms-3">
               {formatPrice(Number(item.price) * item.quantity)}

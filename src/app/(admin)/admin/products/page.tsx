@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import { Plus, ToggleLeft, ToggleRight, Search, ChevronsLeft, ChevronsRight, ChevronLeft, ChevronRight } from 'lucide-react';
 import api from '@/lib/api';
 import { Product, Pagination } from '@/types';
-import { formatPrice, variantLabelLocalized } from '@/lib/utils';
+import { formatPrice } from '@/lib/utils';
 import { useLocale, pickLocalized } from '@/i18n/useLocale';
 import { Button } from '@/components/ui/Button';
 import { PageSpinner } from '@/components/ui/Spinner';
@@ -137,9 +137,11 @@ export default function AdminProductsPage() {
             <thead className="border-b border-gray-100 bg-gray-50">
               <tr>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Product</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Brand</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Category</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Variants</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">From</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">SKU</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Price</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Stock</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Status</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Home</th>
                 <th className="px-4 py-3"></th>
@@ -147,33 +149,22 @@ export default function AdminProductsPage() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {products.map((product) => {
-                const minPrice = product.variants.length > 0
-                  ? Math.min(...product.variants.map((v) => Number(v.price)))
-                  : 0;
                 const primary = pickLocalized(product, locale);
                 const secondary = locale === 'ar' ? product.name : product.nameAr;
+                const priceLabel = product.price != null ? formatPrice(product.price) : '—';
                 return (
                   <tr key={product.id} className={`hover:bg-gray-50 transition-colors ${!product.isActive ? 'opacity-60' : ''}`}>
                     <td className="px-4 py-3">
                       <p className="font-semibold text-gray-900 leading-tight">{primary}</p>
                       <p className="text-xs text-gray-400 mt-0.5" dir={locale === 'ar' ? 'ltr' : 'rtl'}>{secondary}</p>
                     </td>
-                    <td className="px-4 py-3 text-gray-600">{pickLocalized(product.category, locale)}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1">
-                        {product.variants.map((v) => (
-                          <span
-                            key={v.id}
-                            className={`rounded-md px-1.5 py-0.5 text-xs ${
-                              v.isActive ? 'bg-gray-100 text-gray-600' : 'bg-red-50 text-red-500 line-through'
-                            }`}
-                          >
-                            {variantLabelLocalized(v.type, locale)}
-                          </span>
-                        ))}
-                      </div>
+                    <td className="px-4 py-3 text-gray-600">
+                      {product.brand ? pickLocalized(product.brand, locale) : <span className="text-gray-300">—</span>}
                     </td>
-                    <td className="px-4 py-3 font-semibold text-brand-600">{formatPrice(minPrice)}</td>
+                    <td className="px-4 py-3 text-gray-600">{pickLocalized(product.category, locale)}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-gray-500">{product.sku ?? '—'}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-brand-600">{priceLabel}</td>
+                    <td className="px-4 py-3 text-right text-gray-700">{product.stock}</td>
                     <td className="px-4 py-3">
                       <button
                         onClick={() => toggleStatus(product.id, product.isActive)}

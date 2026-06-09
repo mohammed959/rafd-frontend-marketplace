@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { CartItem, VariantType } from '@/types';
+import { CartItem, Product } from '@/types';
 import api from '@/lib/api';
 
 interface DeliveryFeeResult {
@@ -16,8 +16,13 @@ interface CartState {
   isOpen: boolean;
 
   addItem: (item: Omit<CartItem, 'quantity'>) => void;
-  removeItem: (variantId: string) => void;
-  updateQuantity: (variantId: string, quantity: number) => void;
+  /**
+   * Phase 6: the only marketplace add-to-basket entry point. Reads
+   * product-level price; tracks the basket line under `productId`.
+   */
+  addProduct: (product: Product) => void;
+  removeItem: (productId: string) => void;
+  updateQuantity: (productId: string, quantity: number) => void;
   clearCart: () => void;
   openCart: () => void;
   closeCart: () => void;
@@ -42,13 +47,13 @@ export const useCartStore = create<CartState>()(
 
       addItem: (newItem) => {
         const items = get().items;
-        const existing = items.find((i) => i.variantId === newItem.variantId);
+        const existing = items.find((i) => i.productId === newItem.productId);
         // Coerce price to number — Prisma Decimal serialises as string in JSON
         const price = Number(newItem.price);
         if (existing) {
           set({
             items: items.map((i) =>
-              i.variantId === newItem.variantId
+              i.productId === newItem.productId
                 ? { ...i, quantity: i.quantity + 1 }
                 : i
             ),
@@ -58,18 +63,27 @@ export const useCartStore = create<CartState>()(
         }
       },
 
-      removeItem: (variantId) => {
-        set({ items: get().items.filter((i) => i.variantId !== variantId) });
+      addProduct: (product) => {
+        get().addItem({
+          productId: product.id,
+          productName: product.name,
+          productImage: product.imageUrl,
+          price: Number(product.price ?? 0),
+        });
       },
 
-      updateQuantity: (variantId, quantity) => {
+      removeItem: (productId) => {
+        set({ items: get().items.filter((i) => i.productId !== productId) });
+      },
+
+      updateQuantity: (productId, quantity) => {
         if (quantity <= 0) {
-          get().removeItem(variantId);
+          get().removeItem(productId);
           return;
         }
         set({
           items: get().items.map((i) =>
-            i.variantId === variantId ? { ...i, quantity } : i
+            i.productId === productId ? { ...i, quantity } : i
           ),
         });
       },
@@ -79,7 +93,8 @@ export const useCartStore = create<CartState>()(
       openCart: () => set({ isOpen: true }),
       closeCart: () => set({ isOpen: false }),
 
-      // Replace the cart wholesale (used by reorder flow)
+      // Replace the cart wholesale (used by reorder flow). The reorder
+      // backend already emits product-keyed items, so we just trust them.
       setItemsFromReorder: (items) => set({ items }),
 
       // Hook invoked after login. Today the cart is purely client-side, so we
@@ -116,6 +131,18 @@ export const useCartStore = create<CartState>()(
     {
       name: 'cart-storage',
       partialize: (state) => ({ items: state.items }),
+      // Phase 6 cart shape diverged from the legacy variantId-keyed
+      // entries — purge any persisted item that doesn't have a productId
+      // so we never render half-shaped rows after the upgrade.
+      migrate: (persistedState, _version) => {
+        const state = persistedState as { items?: unknown };
+        if (!state || !Array.isArray(state.items)) return { items: [] };
+        const items = (state.items as Array<Record<string, unknown>>).filter(
+          (i) => typeof i.productId === 'string' && typeof i.quantity === 'number',
+        );
+        return { items: items as unknown as CartItem[] };
+      },
+      version: 1,
     }
   )
 );

@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import api from '@/lib/api';
 import { Order, OrderStatus, PaymentStatus, User, FulfillmentType } from '@/types';
-import { formatPrice, variantLabelLocalized, orderStatusColor, timeAgo } from '@/lib/utils';
+import { formatPrice, orderStatusColor, timeAgo } from '@/lib/utils';
 import { useLocale, pickLocalized } from '@/i18n/useLocale';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -350,15 +350,27 @@ export default function AdminOrderDetailPage() {
           <div className="rounded-2xl bg-white border border-gray-100 p-4 space-y-3">
             <p className="font-semibold text-gray-900 text-sm">{t('orders.items')} ({order.items.length})</p>
             {order.items.map((item) => {
-              const productName = pickLocalized(item.variant.product, locale);
+              const productEntity = item.product ?? item.variant?.product ?? null;
+              const productName = item.productName
+                ? (locale === 'ar' && item.productNameAr ? item.productNameAr : item.productName)
+                : productEntity
+                  ? pickLocalized(productEntity, locale)
+                  : '—';
+              const sku = item.productSku ?? productEntity?.sku ?? item.variant?.sku ?? null;
+              const barcode = item.productBarcode ?? productEntity?.barcode ?? null;
               return (
                 <div key={item.id} className="flex items-center gap-3">
                   <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-gray-100">
-                    <ProductImage src={item.variant.product.imageUrl} alt={productName} fill sizes="48px" className="object-cover" />
+                    <ProductImage src={productEntity?.imageUrl ?? null} alt={productName} fill sizes="48px" className="object-cover" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-gray-900 truncate">{productName}</p>
-                    <p className="text-xs text-gray-500">{variantLabelLocalized(item.variant.type, locale)} × {item.quantity} · SKU {item.variant.sku}</p>
+                    <p className="text-xs text-gray-500 truncate">
+                      × {item.quantity}
+                      {sku ? ` · SKU ${sku}` : ''}
+                      {barcode ? ` · ${barcode}` : ''}
+                      {` · ${formatPrice(item.unitPrice)}`}
+                    </p>
                   </div>
                   <p className="text-sm font-bold text-gray-900 shrink-0">{formatPrice(item.total)}</p>
                 </div>
