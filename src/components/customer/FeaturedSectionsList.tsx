@@ -17,7 +17,7 @@ export function FeaturedSectionsList() {
       <section className="space-y-3">
         <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="w-40 shrink-0"><ProductCardSkeleton /></div>
+            <div key={i} className="w-[28%] sm:w-[30%] md:w-[23%] lg:w-[18%] shrink-0 snap-start"><ProductCardSkeleton /></div>
           ))}
         </div>
       </section>
@@ -35,7 +35,7 @@ export function FeaturedSectionsList() {
           </div>
           <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x snap-mandatory scrollbar-hide">
             {section.items.map((item) => (
-              <div key={item.id} className="w-40 shrink-0 snap-start">
+              <div key={item.id} className="w-[28%] sm:w-[30%] md:w-[23%] lg:w-[18%] shrink-0 snap-start">
                 <ProductCard product={item.product} />
               </div>
             ))}

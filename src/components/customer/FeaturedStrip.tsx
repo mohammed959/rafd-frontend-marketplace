@@ -23,12 +23,12 @@ export function FeaturedStrip() {
       <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 snap-x snap-mandatory scrollbar-hide">
         {isLoading
           ? Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="w-40 shrink-0 snap-start">
+              <div key={i} className="w-[28%] sm:w-[30%] md:w-[23%] lg:w-[18%] shrink-0 snap-start">
                 <ProductCardSkeleton />
               </div>
             ))
           : data!.map((product) => (
-              <div key={product.id} className="w-40 shrink-0 snap-start">
+              <div key={product.id} className="w-[28%] sm:w-[30%] md:w-[23%] lg:w-[18%] shrink-0 snap-start">
                 <ProductCard product={product} />
               </div>
             ))}

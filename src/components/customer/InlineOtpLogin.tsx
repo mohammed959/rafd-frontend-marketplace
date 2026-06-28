@@ -6,6 +6,9 @@ import { Phone, KeyRound } from 'lucide-react';
 import { useCustomerAuthStore } from '@/stores/customerAuthStore';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { SaudiPhoneField } from '@/components/customer/SaudiPhoneField';
+import { OtpBadge } from '@/components/customer/OtpBadge';
+import { validateSaudiLocal, normalizeSaudiPhone, SaudiPhoneError } from '@/lib/phone';
 
 interface Props {
   onSuccess?: () => void;
@@ -15,19 +18,32 @@ export function InlineOtpLogin({ onSuccess }: Props) {
   const t = useTranslations();
   const { requestOtp, verifyOtp } = useCustomerAuthStore();
   const [step, setStep] = useState<'phone' | 'otp'>('phone');
-  const [mobile, setMobile] = useState('+966');
+  // Local Saudi digits only — the +966 prefix is fixed and not editable.
+  const [mobile, setMobile] = useState('');
   const [code, setCode] = useState('');
   const [devCode, setDevCode] = useState<string | null>(null);
+  const [phoneError, setPhoneError] = useState('');
   const [loading, setLoading] = useState(false);
 
+  const phoneErrorMessage = (key: Exclude<SaudiPhoneError, null>): string =>
+    key === 'len10'
+      ? t('validation.saudiPhoneLen10')
+      : key === 'len9'
+        ? t('validation.saudiPhoneLen9')
+        : t('validation.invalidSaudiPhone');
+
   const handleRequest = async () => {
-    if (!/^\+?\d{8,15}$/.test(mobile.trim())) {
-      toast.error(t('validation.invalidPhone'));
+    const err = validateSaudiLocal(mobile);
+    if (err) {
+      const msg = phoneErrorMessage(err);
+      setPhoneError(msg);
+      toast.error(msg);
       return;
     }
+    setPhoneError('');
     setLoading(true);
     try {
-      const res = await requestOtp(mobile.trim());
+      const res = await requestOtp(normalizeSaudiPhone(mobile));
       setDevCode(res?.code ?? null);
       setStep('otp');
       toast.success(t('auth.sendOtp'));
@@ -39,17 +55,17 @@ export function InlineOtpLogin({ onSuccess }: Props) {
   };
 
   const handleVerify = async () => {
-    if (code.length < 4) {
-      toast.error(t('validation.invalidOtp'));
+    if (code.length !== 6) {
+      toast.error(t('auth.otpInvalid'));
       return;
     }
     setLoading(true);
     try {
-      await verifyOtp(mobile.trim(), code.trim());
+      await verifyOtp(normalizeSaudiPhone(mobile), code.trim());
       toast.success(t('auth.signIn'));
       onSuccess?.();
     } catch (err: any) {
-      toast.error(err.response?.data?.message ?? t('validation.invalidOtp'));
+      toast.error(err.response?.data?.message ?? t('auth.otpInvalid'));
     } finally {
       setLoading(false);
     }
@@ -64,13 +80,12 @@ export function InlineOtpLogin({ onSuccess }: Props) {
 
       {step === 'phone' ? (
         <>
-          <Input
+          <SaudiPhoneField
             label={t('auth.mobileNumber')}
-            type="tel"
-            inputMode="tel"
-            placeholder="+966500000001"
             value={mobile}
-            onChange={(e) => setMobile(e.target.value)}
+            onChange={(digits) => { setMobile(digits); setPhoneError(''); }}
+            onEnter={handleRequest}
+            error={phoneError}
           />
           <Button className="w-full" loading={loading} onClick={handleRequest}>
             <Phone className="h-4 w-4" /> {t('auth.sendOtp')}
@@ -78,19 +93,17 @@ export function InlineOtpLogin({ onSuccess }: Props) {
         </>
       ) : (
         <>
-          {devCode && (
-            <div className="rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-700">
-              {t('auth.devOtp')}: <span className="font-mono font-bold tracking-widest">{devCode}</span>
-            </div>
-          )}
+          <OtpBadge code={devCode} />
           <Input
             label={t('auth.otp')}
             type="text"
             inputMode="numeric"
             placeholder="123456"
             value={code}
-            onChange={(e) => setCode(e.target.value)}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+            onKeyDown={(e) => e.key === 'Enter' && handleVerify()}
             maxLength={6}
+            dir="ltr"
           />
           <div className="flex gap-2">
             <Button variant="ghost" className="flex-1" disabled={loading} onClick={() => { setStep('phone'); setCode(''); setDevCode(null); }}>

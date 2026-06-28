@@ -5,6 +5,9 @@ export const DEFAULT_MAP_CENTER = {
   lng: Number(process.env.NEXT_PUBLIC_DEFAULT_MAP_CENTER_LNG ?? 46.6753),
 };
 
+// Note: we intentionally do NOT load the `drawing` library. Google removed
+// the DrawingManager class in Maps JS API v3.65, so the admin delivery-area
+// tool draws polygons via manual map clicks instead (see PolygonDrawerMap).
 export const GOOGLE_MAPS_LIBRARIES: ('places' | 'geocoding')[] = ['places'];
 
 export function buildDirectionsUrl(lat: number | string, lng: number | string) {

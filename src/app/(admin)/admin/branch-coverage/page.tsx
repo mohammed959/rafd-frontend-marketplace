@@ -12,6 +12,8 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { PageSpinner } from '@/components/ui/Spinner';
 import { LocationPickerMap } from '@/components/maps/LocationPickerMap';
+import { PolygonDrawerMap } from '@/components/maps/PolygonDrawerMap';
+import { LatLng } from '@/lib/geo';
 
 const fetcher = (url: string) => api.get(url).then((r) => r.data.data);
 
@@ -25,6 +27,8 @@ interface BranchData {
     latitude: number;
     longitude: number;
     phone: string | null;
+    deliveryPolygon: LatLng[] | null;
+    excludedPolygons: LatLng[][] | null;
   } | null;
 }
 
@@ -105,11 +109,13 @@ export default function BranchCoveragePage() {
   const [address, setAddress] = useState('');
   const [phone, setPhone] = useState('');
   const [pin, setPin] = useState<{ lat: number; lng: number } | null>(null);
+  // Polygon-based delivery coverage (replaces the radius/maxDeliveryKm model).
+  const [mainPolygon, setMainPolygon] = useState<LatLng[] | null>(null);
+  const [excludedPolygons, setExcludedPolygons] = useState<LatLng[][]>([]);
   const [savingBranch, setSavingBranch] = useState(false);
 
   const [deliveryEnabled, setDeliveryEnabled] = useState(true);
   const [distanceRulesEnabled, setDistanceRulesEnabled] = useState(false);
-  const [maxDeliveryKm, setMaxDeliveryKm] = useState('');
   const [roadMultiplier, setRoadMultiplier] = useState('1.00');
   // Phase 4: free-delivery threshold and minimum-order amount are now
   // configured here too, not in /admin/settings.
@@ -130,13 +136,14 @@ export default function BranchCoveragePage() {
     setAddress(branchData.branch.address);
     setPhone(branchData.branch.phone ?? '');
     setPin({ lat: branchData.branch.latitude, lng: branchData.branch.longitude });
+    setMainPolygon(branchData.branch.deliveryPolygon ?? null);
+    setExcludedPolygons(branchData.branch.excludedPolygons ?? []);
   }, [branchData]);
 
   useEffect(() => {
     if (!settings) return;
     setDeliveryEnabled(Boolean(settings.deliveryEnabled));
     setDistanceRulesEnabled(Boolean(settings.distanceRulesEnabled));
-    setMaxDeliveryKm(settings.maxDeliveryKm != null ? String(settings.maxDeliveryKm) : '');
     setRoadMultiplier(
       settings.roadDistanceMultiplier != null
         ? String(settings.roadDistanceMultiplier)
@@ -196,6 +203,10 @@ export default function BranchCoveragePage() {
         latitude: pin.lat,
         longitude: pin.lng,
         phone: phone.trim() || null,
+        // `null` clears the area; an array (>=3 pts) sets it. Excluded rings
+        // are only meaningful when a main area exists.
+        deliveryPolygon: mainPolygon && mainPolygon.length >= 3 ? mainPolygon : null,
+        excludedPolygons: mainPolygon && mainPolygon.length >= 3 ? excludedPolygons : [],
       });
       await mutateBranch();
       toast.success(t('admin.saveBranch'));
@@ -207,10 +218,6 @@ export default function BranchCoveragePage() {
   };
 
   const saveSettings = async () => {
-    const numericMax = maxDeliveryKm.trim() === '' ? null : Number(maxDeliveryKm);
-    if (numericMax != null && (!Number.isFinite(numericMax) || numericMax <= 0)) {
-      return toast.error('Maximum distance must be greater than 0.');
-    }
     const numericMultiplier = roadMultiplier.trim() === '' ? 1 : Number(roadMultiplier);
     if (!Number.isFinite(numericMultiplier) || numericMultiplier < 0.5 || numericMultiplier > 3) {
       return toast.error('Road distance multiplier must be between 0.5 and 3.0.');
@@ -247,7 +254,6 @@ export default function BranchCoveragePage() {
         api.put('/delivery/settings', {
           deliveryEnabled,
           distanceRulesEnabled,
-          maxDeliveryKm: numericMax,
           roadDistanceMultiplier: Math.round(numericMultiplier * 100) / 100,
           freeDeliveryEnabled,
           freeDeliveryThreshold: freeThresholdValue,
@@ -358,6 +364,31 @@ export default function BranchCoveragePage() {
         <Input label={t('checkout.addressDetails')} value={address} onChange={(e) => setAddress(e.target.value)} />
         <Input label="Phone (optional)" value={phone} onChange={(e) => setPhone(e.target.value)} />
 
+        {/* ─── Delivery service area (polygon) ──────────────────────── */}
+        <div className="space-y-2 border-t pt-4">
+          <h3 className="font-semibold text-gray-900">{t('admin.deliveryArea')}</h3>
+          <p className="text-xs text-gray-500 leading-relaxed">{t('admin.deliveryAreaHint')}</p>
+          <PolygonDrawerMap
+            storeLat={pin?.lat ?? null}
+            storeLng={pin?.lng ?? null}
+            mainPolygon={mainPolygon}
+            excludedPolygons={excludedPolygons}
+            onChange={({ main, excluded }) => {
+              setMainPolygon(main);
+              setExcludedPolygons(excluded);
+            }}
+            onError={(msg) => toast.error(msg)}
+            language={mapLang}
+            height={420}
+          />
+          {!mainPolygon && (
+            <p className="flex items-center gap-1.5 text-xs font-medium text-amber-700">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              {t('admin.noDeliveryAreaWarning')}
+            </p>
+          )}
+        </div>
+
         <Button loading={savingBranch} onClick={saveBranch}>
           <Save className="h-4 w-4" /> {t('admin.saveBranch')}
         </Button>
@@ -386,15 +417,6 @@ export default function BranchCoveragePage() {
           />
           <span className="text-sm font-medium text-gray-700">{t('admin.useDistanceRules')}</span>
         </label>
-
-        <Input
-          label={t('admin.maxDeliveryKm')}
-          type="number"
-          inputMode="decimal"
-          value={maxDeliveryKm}
-          onChange={(e) => setMaxDeliveryKm(e.target.value)}
-          placeholder="e.g. 20"
-        />
 
         <div className="space-y-1.5">
           <Input

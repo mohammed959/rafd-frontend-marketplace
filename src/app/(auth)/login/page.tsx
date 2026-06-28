@@ -6,8 +6,11 @@ import { useTranslations } from 'next-intl';
 import { useCustomerAuthStore } from '@/stores/customerAuthStore';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { SaudiPhoneField } from '@/components/customer/SaudiPhoneField';
+import { OtpBadge } from '@/components/customer/OtpBadge';
 import { LanguageSwitcher } from '@/components/common/LanguageSwitcher';
 import { BrandLogo } from '@/components/common/BrandLogo';
+import { validateSaudiLocal, normalizeSaudiPhone, SaudiPhoneError } from '@/lib/phone';
 
 type Step = 'phone' | 'otp';
 
@@ -16,18 +19,27 @@ export default function LoginPage() {
   const router = useRouter();
   const { requestOtp, verifyOtp } = useCustomerAuthStore();
   const [step, setStep] = useState<Step>('phone');
+  // Local Saudi digits only (no country code) — the +966 prefix is fixed.
   const [mobile, setMobile] = useState('');
   const [otp, setOtp] = useState('');
   const [devCode, setDevCode] = useState<string | undefined>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  const phoneErrorMessage = (key: Exclude<SaudiPhoneError, null>): string =>
+    key === 'len10'
+      ? t('validation.saudiPhoneLen10')
+      : key === 'len9'
+        ? t('validation.saudiPhoneLen9')
+        : t('validation.invalidSaudiPhone');
+
   const handleRequestOtp = async () => {
-    if (!mobile.trim()) { setError(t('validation.invalidPhone')); return; }
+    const phoneError = validateSaudiLocal(mobile);
+    if (phoneError) { setError(phoneErrorMessage(phoneError)); return; }
     setError('');
     setLoading(true);
     try {
-      const result = await requestOtp(mobile.trim());
+      const result = await requestOtp(normalizeSaudiPhone(mobile));
       setDevCode(result.code);
       setStep('otp');
       toast.success(t('auth.sendOtp'));
@@ -39,18 +51,18 @@ export default function LoginPage() {
   };
 
   const handleVerifyOtp = async () => {
-    if (otp.length !== 6) { setError(t('validation.invalidOtp')); return; }
+    if (otp.length !== 6) { setError(t('auth.otpInvalid')); return; }
     setError('');
     setLoading(true);
     try {
-      await verifyOtp(mobile, otp);
+      await verifyOtp(normalizeSaudiPhone(mobile), otp);
       toast.success(t('auth.signIn'));
 
       // Customer OTP login only routes to the customer storefront.
       // Staff (admin/picker/driver) must use /admin/login.
       router.push('/');
     } catch (err: any) {
-      setError(err.response?.data?.message ?? t('validation.invalidOtp'));
+      setError(err.response?.data?.message ?? t('auth.otpInvalid'));
     } finally {
       setLoading(false);
     }
@@ -76,14 +88,13 @@ export default function LoginPage() {
                 <h2 className="font-bold text-gray-900">{t('auth.signIn')}</h2>
                 <p className="text-sm text-gray-500 mt-0.5">{t('auth.signInToContinue')}</p>
               </div>
-              <Input
+              <SaudiPhoneField
                 label={t('auth.mobileNumber')}
-                type="tel"
-                placeholder="+966 5XX XXX XXX"
                 value={mobile}
-                onChange={(e) => { setMobile(e.target.value); setError(''); }}
-                onKeyDown={(e) => e.key === 'Enter' && handleRequestOtp()}
+                onChange={(digits) => { setMobile(digits); setError(''); }}
+                onEnter={handleRequestOtp}
                 error={error}
+                autoFocus
               />
               <Button className="w-full" size="lg" loading={loading} onClick={handleRequestOtp}>
                 {t('auth.sendOtp')}
@@ -94,16 +105,11 @@ export default function LoginPage() {
               <div>
                 <h2 className="font-bold text-gray-900">{t('auth.otp')}</h2>
                 <p className="text-sm text-gray-500 mt-0.5">
-                  <span className="font-medium font-mono" dir="ltr">{mobile}</span>
+                  <span className="font-medium font-mono" dir="ltr">{normalizeSaudiPhone(mobile)}</span>
                 </p>
               </div>
 
-              {devCode && (
-                <div className="rounded-xl bg-amber-50 border border-amber-200 px-3 py-2.5">
-                  <p className="text-xs font-medium text-amber-700">{t('auth.devOtp')}</p>
-                  <p className="text-2xl font-black text-amber-800 tracking-widest" dir="ltr">{devCode}</p>
-                </div>
-              )}
+              <OtpBadge code={devCode} />
 
               <Input
                 label={t('auth.otp')}

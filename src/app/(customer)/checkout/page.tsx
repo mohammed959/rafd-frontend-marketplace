@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 import { useTranslations } from 'next-intl';
 import {
   ShoppingBag, MapPin, Sparkles, AlertTriangle, ChevronRight,
-  Truck, Store, Info, ShieldOff,
+  Truck, Store, Info, ShieldOff, ShieldCheck,
 } from 'lucide-react';
 import api from '@/lib/api';
 import { useCartStore } from '@/stores/cartStore';
@@ -272,21 +272,22 @@ export default function CheckoutPage() {
             );
           })}
         </div>
-        {quote && !deliveryAvailable && (
+        {quote && !deliveryAvailable && hasLocation && (
           <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
             <ShieldOff className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
             <div className="text-xs text-amber-800 leading-snug">
-              <p className="font-semibold">{t('delivery.outOfCoverageTitle')}</p>
+              <p className="font-semibold">{t('delivery.notAvailableTitle')}</p>
               <p className="mt-0.5 text-amber-700">
-                {quote.message ?? t('delivery.outOfCoverageBody')}
+                {quote.message ?? t('delivery.notAvailableBody')}
               </p>
-              {quote.distanceKm != null && quote.maxDeliveryKm != null && (
-                <p className="mt-1 font-mono text-amber-700">
-                  {quote.distanceKm.toFixed(1)} km / {quote.maxDeliveryKm} km max
-                </p>
-              )}
             </div>
           </div>
+        )}
+        {quote && deliveryAvailable && !isPickup && (
+          <p className="flex items-center gap-1.5 rounded-xl bg-green-50 border border-green-100 px-3 py-2 text-xs font-semibold text-green-700">
+            <ShieldCheck className="h-4 w-4 shrink-0" />
+            {t('delivery.availableForLocation')}
+          </p>
         )}
         {quote && deliveryAvailable && !isPickup && quote.distanceKm != null && (
           <div className="rounded-xl bg-green-50 border border-green-100 px-3 py-2 text-xs space-y-1">

@@ -363,3 +363,10 @@ export interface ApiResponse<T> {
   message: string;
   data: T;
 }
+
+export interface HomeSettings {
+  id: string;
+  // Number of products shown in the homepage "All Products" strip.
+  allProductsLimit: number;
+  updatedAt: string;
+}
