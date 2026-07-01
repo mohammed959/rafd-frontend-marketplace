@@ -45,7 +45,12 @@ export async function reverseGeocode(lat: number, lng: number, language: 'ar' | 
       city: cityComp?.long_name ?? null,
       country: countryComp?.long_name ?? null,
     };
-  } catch {
+  } catch (err) {
+    // Surface WHY geocoding failed — the most common cause of the address
+    // fields not auto-filling is the "Geocoding API" not being enabled for
+    // the Maps key (the map itself still renders via the Maps JS API), or a
+    // key HTTP-referrer restriction rejecting the request.
+    console.warn('[reverseGeocode] failed — address auto-fill skipped:', (err as Error)?.message ?? err);
     return null;
   }
 }

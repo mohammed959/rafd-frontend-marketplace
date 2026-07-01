@@ -1,11 +1,9 @@
 'use client';
-import { ShoppingCart, Search, MapPin, Bell, Clock } from 'lucide-react';
+import { ShoppingCart, Search, MapPin, Clock } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
 import { useCartStore } from '@/stores/cartStore';
-import { useCustomerAuthStore } from '@/stores/customerAuthStore';
 import { useLocationStore } from '@/stores/locationStore';
-import { useNotificationsStore } from '@/stores/notificationsStore';
 import { LanguageSwitcher } from '@/components/common/LanguageSwitcher';
 import { BrandLogo } from '@/components/common/BrandLogo';
 
@@ -18,9 +16,7 @@ export function CustomerHeader() {
   const t = useTranslations();
   const count = useCartStore((s) => s.itemCount());
   const openCart = useCartStore((s) => s.openCart);
-  const isAuthenticated = useCustomerAuthStore((s) => s.isAuthenticated);
   const storedLabel = useLocationStore((s) => s.label);
-  const unread = useNotificationsStore((s) => s.unreadCount);
 
   const locationLabel = storedLabel === 'Choose location' ? t('nav.location') : storedLabel;
 
@@ -52,20 +48,6 @@ export function CustomerHeader() {
         {/* Actions */}
         <div className="flex items-center gap-1 shrink-0">
           <LanguageSwitcher variant="icon" />
-          {isAuthenticated && (
-            <Link
-              href="/notifications"
-              aria-label={t('nav.notifications')}
-              className="relative flex h-9 w-9 items-center justify-center rounded-2xl bg-white text-gray-600 shadow-soft hover:bg-brand-50 transition-colors"
-            >
-              <Bell className="h-4 w-4" />
-              {unread > 0 && (
-                <span className="absolute -end-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger-500 px-1 text-[10px] font-bold text-white">
-                  {unread > 9 ? '9+' : unread}
-                </span>
-              )}
-            </Link>
-          )}
           <button
             onClick={openCart}
             aria-label={t('nav.cart')}

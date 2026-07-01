@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { InlineOtpLogin } from '@/components/customer/InlineOtpLogin';
 import { PickupScheduler, type PickupSchedule } from '@/components/customer/PickupScheduler';
+import { DeliveryImagesUploader } from '@/components/customer/DeliveryImagesUploader';
 
 const fetcher = (url: string) => api.get(url).then((r) => r.data.data);
 
@@ -75,6 +76,8 @@ export default function CheckoutPage() {
   const [fulfillmentType, setFulfillmentType] = useState<FulfillmentType>('DELIVERY');
   const [notes, setNotes] = useState('');
   const [replacementPref, setReplacementPref] = useState('');
+  // Up to 3 delivery-location photos (Bunny CDN URLs) for the driver.
+  const [deliveryImages, setDeliveryImages] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   // Pickup scheduling — defaults to ASAP. Becomes SCHEDULED when the customer
   // picks a future date/slot from the PickupScheduler.
@@ -183,6 +186,7 @@ export default function CheckoutPage() {
         addressId: isPickup ? undefined : locAddressId ?? undefined,
         deliveryLat: isPickup ? undefined : locLat ?? undefined,
         deliveryLng: isPickup ? undefined : locLng ?? undefined,
+        deliveryImages: isPickup || deliveryImages.length === 0 ? undefined : deliveryImages,
         paymentMethod,
         notes: notes.trim() || undefined,
         replacementPreference: replacementPref.trim() || undefined,
@@ -339,6 +343,17 @@ export default function CheckoutPage() {
           </div>
           <ChevronRight className="h-5 w-5 text-gray-400 shrink-0 rtl:rotate-180" />
         </Link>
+      )}
+
+      {/* Delivery location photos (delivery only) — help the driver find the spot */}
+      {!isPickup && (
+        <div className="rounded-2xl bg-white border border-gray-100 p-4 shadow-sm space-y-3">
+          <div>
+            <p className="font-semibold text-gray-900">{t('checkout.deliveryImagesTitle')}</p>
+            <p className="text-xs text-gray-500 mt-0.5">{t('checkout.deliveryImagesHint')}</p>
+          </div>
+          <DeliveryImagesUploader value={deliveryImages} onChange={setDeliveryImages} />
+        </div>
       )}
 
       {/* Pickup summary box */}

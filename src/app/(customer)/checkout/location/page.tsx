@@ -71,10 +71,13 @@ export default function LocationPage() {
   const handlePinChange = useCallback(
     (loc: { lat: number; lng: number; address?: string; city?: string | null }) => {
       setPin({ lat: loc.lat, lng: loc.lng });
-      if (loc.address && !addressLine) setAddressLine(loc.address);
-      if (loc.city && !city) setCity(loc.city);
+      // Auto-fill the fields below the map on every pin move (reverse-geocode).
+      // We overwrite so the details always reflect the current pin — the
+      // customer can still edit afterwards; the next pin move refreshes again.
+      if (loc.address) setAddressLine(loc.address);
+      if (loc.city) setCity(loc.city);
     },
-    [addressLine, city],
+    [],
   );
 
   /** Sets the in-session "active" address used for checkout. */

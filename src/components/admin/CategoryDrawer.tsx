@@ -30,6 +30,7 @@ export function CategoryDrawer({ open, onClose, onSaved, category }: Props) {
   const [slugTouched, setSlugTouched] = useState(false);
   const [sortOrder, setSortOrder] = useState('0');
   const [isActive, setIsActive] = useState(true);
+  const [showOnHome, setShowOnHome] = useState(true);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
@@ -43,9 +44,10 @@ export function CategoryDrawer({ open, onClose, onSaved, category }: Props) {
       setSlug(category.slug);
       setSortOrder(String(category.sortOrder ?? 0));
       setIsActive(category.isActive);
+      setShowOnHome(category.showOnHome ?? true);
     } else {
       setName(''); setNameAr(''); setSlug('');
-      setSortOrder('0'); setIsActive(true);
+      setSortOrder('0'); setIsActive(true); setShowOnHome(true);
     }
   }, [open, category]);
 
@@ -72,6 +74,7 @@ export function CategoryDrawer({ open, onClose, onSaved, category }: Props) {
         nameAr: nameAr.trim(),
         slug: slug.trim(),
         sortOrder: Number(sortOrder) || 0,
+        showOnHome,
         ...(isEdit && { isActive }),
       };
       if (isEdit && category) {
@@ -144,6 +147,16 @@ export function CategoryDrawer({ open, onClose, onSaved, category }: Props) {
             value={sortOrder}
             onChange={(e) => setSortOrder(e.target.value)}
           />
+
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={showOnHome}
+              onChange={(e) => setShowOnHome(e.target.checked)}
+              className="accent-brand-500 h-4 w-4"
+            />
+            <span className="text-sm font-medium text-gray-700">Show on marketplace home</span>
+          </label>
 
           {isEdit && (
             <label className="flex items-center gap-3 cursor-pointer">

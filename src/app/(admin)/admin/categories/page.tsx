@@ -3,7 +3,7 @@ import { useState } from 'react';
 import useSWR from 'swr';
 import toast from 'react-hot-toast';
 import { useTranslations } from 'next-intl';
-import { Plus, ChevronDown, ChevronRight, ToggleLeft, ToggleRight, Pencil } from 'lucide-react';
+import { Plus, ChevronDown, ChevronRight, ToggleLeft, ToggleRight, Pencil, Upload, Home, EyeOff } from 'lucide-react';
 import api from '@/lib/api';
 import { Category, Subcategory } from '@/types';
 import { useLocale, pickLocalized } from '@/i18n/useLocale';
@@ -13,6 +13,7 @@ import { PageSpinner } from '@/components/ui/Spinner';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { CategoryDrawer } from '@/components/admin/CategoryDrawer';
 import { SubcategoryDrawer } from '@/components/admin/SubcategoryDrawer';
+import { CategoryImportPanel } from '@/components/admin/CategoryImportPanel';
 
 const fetcher = (url: string) => api.get(url).then((r) => r.data.data);
 
@@ -22,6 +23,7 @@ export default function AdminCategoriesPage() {
   const { data, isLoading, mutate } = useSWR<Category[]>('/categories?all=true', fetcher);
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [showImport, setShowImport] = useState(false);
   const [catDrawer, setCatDrawer] = useState(false);
   const [editingCat, setEditingCat] = useState<Category | null>(null);
 
@@ -38,6 +40,16 @@ export default function AdminCategoriesPage() {
       await api.put(`/categories/${c.id}`, { isActive: !c.isActive });
       await mutate();
       toast.success(`Category ${!c.isActive ? 'activated' : 'deactivated'}`);
+    } catch {
+      toast.error('Failed to update category');
+    }
+  };
+
+  const toggleHome = async (c: Category) => {
+    try {
+      await api.put(`/categories/${c.id}`, { showOnHome: !c.showOnHome });
+      await mutate();
+      toast.success(!c.showOnHome ? t('admin.shownOnHome') : t('admin.hiddenFromHome'));
     } catch {
       toast.error('Failed to update category');
     }
@@ -61,13 +73,21 @@ export default function AdminCategoriesPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <h1 className="text-2xl font-bold text-gray-900">{t('admin.categories')}</h1>
-        <Button size="sm" onClick={openCreateCategory}>
-          <Plus className="h-4 w-4" />
-          {t('admin.categories')}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="secondary" onClick={() => setShowImport((v) => !v)}>
+            <Upload className="h-4 w-4" />
+            {t('admin.import')}
+          </Button>
+          <Button size="sm" onClick={openCreateCategory}>
+            <Plus className="h-4 w-4" />
+            {t('admin.categories')}
+          </Button>
+        </div>
       </div>
+
+      {showImport && <CategoryImportPanel onImported={() => mutate()} />}
 
       {isLoading ? (
         <PageSpinner />
@@ -108,6 +128,21 @@ export default function AdminCategoriesPage() {
                 >
                   {c.isActive ? <ToggleRight className="h-5 w-5" /> : <ToggleLeft className="h-5 w-5" />}
                   {c.isActive ? t('common.active') : t('common.inactive')}
+                </button>
+
+                {/* Home visibility — only meaningful while the category is active */}
+                <button
+                  onClick={() => toggleHome(c)}
+                  disabled={!c.isActive}
+                  title={c.showOnHome ? t('admin.shownOnHome') : t('admin.hiddenFromHome')}
+                  className={`flex items-center gap-1.5 text-xs font-semibold transition-colors disabled:opacity-40 ${
+                    c.showOnHome ? 'text-brand-600' : 'text-gray-400'
+                  }`}
+                >
+                  {c.showOnHome ? <Home className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                  <span className="hidden sm:inline">
+                    {c.showOnHome ? t('admin.onHome') : t('admin.offHome')}
+                  </span>
                 </button>
 
                 <button

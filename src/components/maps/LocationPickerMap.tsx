@@ -47,6 +47,16 @@ export function LocationPickerMap({ lat, lng, onChange, language = 'en', height 
     resolveAddress(c.lat(), c.lng());
   }, [resolveAddress]);
 
+  // Tapping/clicking the map moves the pin to that spot and re-fills the
+  // address fields — in addition to dragging the map under the fixed pin.
+  const handleMapClick = useCallback((e: google.maps.MapMouseEvent) => {
+    if (!e.latLng) return;
+    const nextLat = e.latLng.lat();
+    const nextLng = e.latLng.lng();
+    mapRef.current?.panTo({ lat: nextLat, lng: nextLng });
+    resolveAddress(nextLat, nextLng);
+  }, [resolveAddress]);
+
   const useCurrentLocation = useCallback(() => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) return;
     setLocating(true);
@@ -109,6 +119,7 @@ export function LocationPickerMap({ lat, lng, onChange, language = 'en', height 
         onLoad={(map) => { mapRef.current = map; }}
         onUnmount={() => { mapRef.current = null; }}
         onDragEnd={handleDragEnd}
+        onClick={handleMapClick}
         onZoomChanged={() => {
           // keep marker center synced — handled by center binding
         }}

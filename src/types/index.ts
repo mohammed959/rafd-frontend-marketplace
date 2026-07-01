@@ -32,6 +32,7 @@ export interface Category {
   imageUrl: string | null;
   sortOrder: number;
   isActive: boolean;
+  showOnHome: boolean;
   subcategories: Subcategory[];
 }
 
@@ -171,6 +172,7 @@ export interface Order {
   deliveryLat: number | null;
   deliveryLng: number | null;
   distanceKm: number | null;
+  deliveryImages?: string[] | null;
   pickupType?: 'ASAP' | 'SCHEDULED' | null;
   scheduledPickupDate?: string | null;
   scheduledPickupStartTime?: string | null;

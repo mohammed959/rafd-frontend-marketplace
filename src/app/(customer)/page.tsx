@@ -2,7 +2,7 @@
 import useSWR from 'swr';
 import api from '@/lib/api';
 import { Category } from '@/types';
-import { CategoryGrid } from '@/components/customer/CategoryGrid';
+import { HomeCategoriesRow } from '@/components/customer/HomeCategoriesRow';
 import { BannerCarousel } from '@/components/customer/BannerCarousel';
 import { FeaturedStrip } from '@/components/customer/FeaturedStrip';
 import { BuyAgainStrip } from '@/components/customer/BuyAgainStrip';
@@ -14,7 +14,7 @@ const fetcher = (url: string) => api.get(url).then((r) => r.data.data);
 
 export default function HomePage() {
   const { data: categoriesData, isLoading: catsLoading } = useSWR<Category[]>(
-    '/categories',
+    '/categories?home=true',
     fetcher
   );
 
@@ -24,15 +24,15 @@ export default function HomePage() {
     <div className="space-y-5">
       <BannerCarousel />
 
-      {/* Categories — 3-column grid (Ninja-style) */}
+      {/* Categories — compact horizontal cards with "Discover more" */}
       {catsLoading ? (
-        <div className="grid grid-cols-3 gap-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="aspect-square rounded-2xl" />
+        <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 scrollbar-hide">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <Skeleton key={i} className="h-[68px] w-[68px] shrink-0 rounded-2xl" />
           ))}
         </div>
       ) : (
-        categories.length > 0 && <CategoryGrid categories={categories} limit={6} />
+        <HomeCategoriesRow categories={categories} />
       )}
 
       <BuyAgainStrip />

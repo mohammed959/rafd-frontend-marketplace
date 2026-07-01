@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import useSWR from 'swr';
 import { useParams, useRouter } from 'next/navigation';
 import { ProductImage } from '@/components/common/ProductImage';
@@ -17,6 +17,7 @@ import { Order, ReorderResult, PaymentStatus } from '@/types';
 import { formatPrice, orderStatusColor } from '@/lib/utils';
 import { useLocale, pickLocalized } from '@/i18n/useLocale';
 import { OrderStatusTimeline } from '@/components/customer/OrderStatusTimeline';
+import { DeliveryImagesUploader } from '@/components/customer/DeliveryImagesUploader';
 import { useCartStore } from '@/stores/cartStore';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -46,6 +47,22 @@ export default function OrderDetailPage() {
   const [cancelling, setCancelling] = useState(false);
   const [showCancel, setShowCancel] = useState(false);
   const [cancelReason, setCancelReason] = useState('');
+  // Delivery-location photos, editable any time so the driver sees the latest.
+  const [locImages, setLocImages] = useState<string[]>([]);
+  useEffect(() => {
+    setLocImages(order?.deliveryImages ?? []);
+  }, [order?.deliveryImages]);
+
+  const persistImages = async (next: string[]) => {
+    setLocImages(next);
+    try {
+      await api.patch(`/orders/${id}/delivery-images`, { images: next });
+      await mutate();
+      toast.success(t('orders.imagesUpdated'));
+    } catch (err: any) {
+      toast.error(err.response?.data?.message ?? t('checkout.imageUploadFailed'));
+    }
+  };
 
   if (isLoading) return <PageSpinner />;
   if (!order) return <div className="text-center py-16 text-gray-500">{t('orders.noOrders')}</div>;
@@ -253,6 +270,18 @@ export default function OrderDetailPage() {
               showView
             />
           )}
+        </div>
+      )}
+
+      {/* Delivery location photos — editable any time (delivery orders only) */}
+      {!isPickup && (
+        <div className="rounded-2xl bg-white border border-gray-100 p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <MapPin className="h-4 w-4 text-brand-500" />
+            <p className="font-semibold text-gray-900">{t('orders.deliveryImagesTitle')}</p>
+          </div>
+          <p className="text-xs text-gray-500">{t('orders.deliveryImagesHint')}</p>
+          <DeliveryImagesUploader value={locImages} onChange={persistImages} />
         </div>
       )}
 

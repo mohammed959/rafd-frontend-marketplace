@@ -4,7 +4,6 @@ import { persist } from 'zustand/middleware';
 import { User } from '@/types';
 import api from '@/lib/api';
 import { useFavoritesStore } from './favoritesStore';
-import { useNotificationsStore } from './notificationsStore';
 import { useCartStore } from './cartStore';
 
 interface CustomerAuthState {
@@ -22,7 +21,6 @@ interface CustomerAuthState {
 async function loadCustomerSideEffects() {
   await Promise.allSettled([
     useFavoritesStore.getState().load(),
-    useNotificationsStore.getState().load(),
     useCartStore.getState().mergeOnLogin(),
   ]);
 }
@@ -56,7 +54,6 @@ export const useCustomerAuthStore = create<CustomerAuthState>()(
       logout: () => {
         set({ user: null, token: null, isAuthenticated: false });
         useFavoritesStore.getState().reset();
-        useNotificationsStore.getState().reset();
       },
 
       fetchMe: async () => {

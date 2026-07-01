@@ -340,6 +340,27 @@ export default function AdminOrderDetailPage() {
                   </p>
                 </>
               )}
+
+              {/* Customer-provided location photos (read-only) */}
+              {Array.isArray(order.deliveryImages) && order.deliveryImages.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold text-gray-500">{t('orders.deliveryImagesTitle')}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {order.deliveryImages.map((url) => (
+                      <a
+                        key={url}
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block h-20 w-20 overflow-hidden rounded-xl border border-gray-200 hover:opacity-90"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={url} alt="" className="h-full w-full object-cover" />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

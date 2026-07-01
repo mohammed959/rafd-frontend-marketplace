@@ -1,10 +1,9 @@
 'use client';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { Heart, RotateCcw, Bell, Receipt } from 'lucide-react';
+import { Heart, RotateCcw, Receipt } from 'lucide-react';
 import { useCustomerAuthStore } from '@/stores/customerAuthStore';
 import { useFavoritesStore } from '@/stores/favoritesStore';
-import { useNotificationsStore } from '@/stores/notificationsStore';
 
 interface Tile {
   href: string;
@@ -19,7 +18,6 @@ export function HomeQuickTiles() {
   const t = useTranslations();
   const isAuth = useCustomerAuthStore((s) => s.isAuthenticated);
   const favCount = useFavoritesStore((s) => s.ids.size);
-  const unread = useNotificationsStore((s) => s.unreadCount);
 
   const tiles: Tile[] = [
     {
@@ -44,20 +42,12 @@ export function HomeQuickTiles() {
       bg: 'bg-rose-50',
       fg: 'text-rose-500',
     },
-    {
-      href: '/notifications',
-      label: t('nav.notifications'),
-      icon: Bell,
-      badge: unread,
-      bg: 'bg-amber-50',
-      fg: 'text-amber-500',
-    },
   ];
 
   if (!isAuth) return null;
 
   return (
-    <section className="grid grid-cols-4 gap-2">
+    <section className="grid grid-cols-3 gap-2">
       {tiles.map((t) => (
         <Link
           key={t.href}
